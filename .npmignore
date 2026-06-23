@@ -1,0 +1,8 @@
+.env
+node_modules/
+.codebuddy/
+*.log
+.DS_Store
+.vscode/
+.idea/
+API文档.md
