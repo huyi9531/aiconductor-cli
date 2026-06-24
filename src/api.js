@@ -4,6 +4,7 @@ const path = require("path");
 
 const API_HOST = "plugin.aiconductor.fun";
 const API_PATH = "/api/html_publish";
+const MD_TO_HTML_API_PATH = "/api/md_to_html";
 const SEARCH_API_PATH = "/api/aic_web_search";
 
 /**
@@ -137,4 +138,26 @@ async function webSearch(apiKey, params) {
   return safe;
 }
 
-module.exports = { resolveApiKey, publishHtml, webSearch };
+/**
+ * Markdown 转 HTML 并发布
+ * @param {string} apiKey
+ * @param {string} mdText
+ * @param {string} [filename]
+ * @param {boolean} [addCopyButton=true]
+ * @returns {Promise<{success: boolean, message: string, file_url: string, online_url: string}>}
+ */
+async function publishMdToHtml(apiKey, mdText, filename, addCopyButton = false) {
+  const reqBody = {
+    api_key: apiKey,
+    md_text: mdText,
+    add_copy_button: addCopyButton,
+  };
+  if (filename) reqBody.filename = filename;
+
+  const resp = await httpPost(API_HOST, MD_TO_HTML_API_PATH, reqBody);
+
+  const { billing, ...safe } = resp;
+  return safe;
+}
+
+module.exports = { resolveApiKey, publishHtml, publishMdToHtml, webSearch };

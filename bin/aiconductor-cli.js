@@ -2,6 +2,7 @@
 
 const { Command } = require("commander");
 const { publishCommand } = require("../src/commands/html_publish");
+const { publishCommand: webpagePublishCommand } = require("../src/commands/md_publish");
 const { searchCommand } = require("../src/commands/web_search");
 
 const program = new Command();
@@ -25,6 +26,24 @@ htmlCmd
   .option("-f, --format <format>", "输出格式：json 或 text", "json")
   .action((html, options) => {
     publishCommand(html, options);
+  });
+
+// webpage 子命令组（统一发布 Markdown/HTML 为在线网页）
+const webpageCmd = program
+  .command("webpage")
+  .description("网页发布（支持 Markdown 和 HTML）");
+
+webpageCmd
+  .command("publish")
+  .description("将 Markdown 或 HTML 发布为在线网页（自动识别类型）")
+  .argument("<input>", "Markdown/HTML 文本字符串或文件路径")
+  .option("-k, --api-key <key>", "AIConductor API Key（也可通过 AICONDUCTOR_API_KEY 环境变量或 .env 文件提供）")
+  .option("-t, --title <title>", "文件名（不含 .html 后缀）")
+  .option("--type <type>", "强制指定类型：md 或 html（默认自动识别）")
+  .option("--copy-button", "添加代码复制按钮（仅 Markdown 类型生效）")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((input, options) => {
+    webpagePublishCommand(input, options);
   });
 
 // search 子命令组
