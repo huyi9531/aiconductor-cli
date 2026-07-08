@@ -7,11 +7,12 @@
     "html",
     "publish",
     "deploy",
-    "cli"
+    "cli",
+    "douyin",
+    "search"
   ],
   "author": "",
   "license": "MIT",
-  "main": "src/index.js",
   "bin": {
     "aiconductor-cli": "bin/aiconductor-cli.js"
   },

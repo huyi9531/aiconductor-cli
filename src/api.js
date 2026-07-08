@@ -1,4 +1,4 @@
-const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const path = require("path");
 
@@ -41,6 +41,31 @@ function resolveApiKey(optionKey) {
 }
 
 /**
+ * 过滤响应中的计费信息
+ * @param {object} resp
+ * @returns {object}
+ */
+function stripBilling(resp) {
+  if (!resp || typeof resp !== "object") return resp;
+  const result = { ...resp };
+  delete result.billing;
+  return result;
+}
+
+/**
+ * 校验整数参数，非有效正整数时报错
+ * @param {*} value
+ * @param {string} name
+ */
+function validateInt(value, name) {
+  if (value === undefined || value === null) return;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0) {
+    throw Object.assign(new Error(`${name} 须为非负整数，收到: ${value}`), { type: "validation_error" });
+  }
+}
+
+/**
  * HTTP POST 请求封装
  * @param {string} host
  * @param {string} path
@@ -53,7 +78,7 @@ function httpPost(host, path, body, headers = {}) {
 
     const options = {
       hostname: host,
-      port: 80,
+      port: 443,
       path: path,
       method: "POST",
       headers: {
@@ -63,7 +88,7 @@ function httpPost(host, path, body, headers = {}) {
       },
     };
 
-    const req = http.request(options, (res) => {
+    const req = https.request(options, (res) => {
       let chunks = [];
       res.on("data", (chunk) => chunks.push(chunk));
       res.on("end", () => {
@@ -112,10 +137,7 @@ async function publishHtml(apiKey, htmlCode, title) {
   if (title) reqBody.title = title;
 
   const resp = await httpPost(API_HOST, API_PATH, reqBody);
-
-  // 过滤计费信息
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 /**
@@ -125,6 +147,10 @@ async function publishHtml(apiKey, htmlCode, title) {
  * @returns {Promise<object>}
  */
 async function webSearch(apiKey, params) {
+  // 输入校验
+  validateInt(params.count, "count");
+  validateInt(params.authLevel, "authLevel");
+
   const reqBody = {
     query: params.query,
     search_type: params.searchType,
@@ -140,9 +166,7 @@ async function webSearch(apiKey, params) {
     Authorization: `Bearer ${apiKey}`,
   });
 
-  // 过滤计费信息
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 /**
@@ -163,8 +187,7 @@ async function publishMdToHtml(apiKey, mdText, filename, addCopyButton = false) 
 
   const resp = await httpPost(API_HOST, MD_TO_HTML_API_PATH, reqBody);
 
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 /**
@@ -178,8 +201,7 @@ async function douyinVideoInfo(apiKey, shareUrl) {
     api_key: apiKey,
     share_url: shareUrl,
   });
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 /**
@@ -193,8 +215,7 @@ async function douyinVideoComments(apiKey, videoUrl, maxCount) {
   const body = { api_key: apiKey, video_url: videoUrl };
   if (maxCount !== undefined && maxCount !== null) body.max_count = maxCount;
   const resp = await httpPost(API_HOST, DOUYIN_VIDEO_COMMENTS_PATH, body);
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 /**
@@ -210,8 +231,7 @@ async function douyinUserVideos(apiKey, homePage, maxSeconds, maxPages) {
   if (maxSeconds !== undefined && maxSeconds !== null) body.max_seconds = maxSeconds;
   if (maxPages !== undefined && maxPages !== null) body.max_pages = maxPages;
   const resp = await httpPost(API_HOST, DOUYIN_USER_VIDEOS_PATH, body);
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 /**
@@ -225,8 +245,7 @@ async function douyinUserDetail(apiKey, homePage) {
     api_key: apiKey,
     home_page: homePage,
   });
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 /**
@@ -243,8 +262,7 @@ async function douyinUserSearch(apiKey, keyword, opts = {}) {
   if (opts.fansRange) body.douyin_user_fans = opts.fansRange;
   if (opts.userType) body.douyin_user_type = opts.userType;
   const resp = await httpPost(API_HOST, DOUYIN_USER_SEARCH_PATH, body);
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 /**
@@ -265,8 +283,7 @@ async function douyinVideoSearch(apiKey, keyword, opts = {}) {
   const resp = await httpPost(API_HOST, DOUYIN_VIDEO_SEARCH_PATH, body, {
     Authorization: `Bearer ${apiKey}`,
   });
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 /**
@@ -280,8 +297,7 @@ async function douyinLinkToText(apiKey, videoUrl) {
     api_key: apiKey,
     video_url: videoUrl,
   });
-  const { billing, ...safe } = resp;
-  return safe;
+  return stripBilling(resp);
 }
 
 module.exports = {

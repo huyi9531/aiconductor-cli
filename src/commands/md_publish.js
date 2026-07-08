@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
-const { resolveApiKey, publishHtml, publishMdToHtml } = require("../api");
+const { publishHtml, publishMdToHtml } = require("../api");
+const { outputResult, outputError, resolveKeyOrExit, handleApiError } = require("../lib/cli-utils");
 
 /**
  * 解析输入内容：如果是已存在的文件路径则读取，否则当作原始字符串
@@ -25,13 +26,11 @@ function resolveInput(input) {
  * @returns {"md"|"html"}
  */
 function detectType(content, filePath) {
-  // 优先用文件扩展名判断
   if (filePath) {
     const ext = path.extname(filePath).toLowerCase();
     if (ext === ".md" || ext === ".markdown") return "md";
     if (ext === ".html" || ext === ".htm") return "html";
   }
-  // 内容特征判断
   const trimmed = content.trim();
   if (trimmed.startsWith("<!DOCTYPE") || trimmed.startsWith("<html") || trimmed.startsWith("<head")) {
     return "html";
@@ -39,28 +38,17 @@ function detectType(content, filePath) {
   if (trimmed.startsWith("<") && /<\w+[^>]*>/.test(trimmed.substring(0, 200))) {
     return "html";
   }
-  // 默认 Markdown
   return "md";
 }
 
-function outputResult(data, format) {
-  if (format === "json") {
-    process.stdout.write(JSON.stringify({ success: true, data }, null, 2) + "\n");
-  } else {
-    process.stdout.write(`✓ 发布成功\n`);
-    process.stdout.write(`  URL: ${data.online_url}\n`);
-    if (data.message) {
-      process.stdout.write(`  信息: ${data.message}\n`);
-    }
+/** text 模式的自定义格式化 */
+function formatPublishText(data) {
+  let out = "✓ 发布成功\n";
+  out += `  URL: ${data.online_url}\n`;
+  if (data.message) {
+    out += `  信息: ${data.message}\n`;
   }
-}
-
-function outputError(err, format) {
-  if (format === "json") {
-    process.stderr.write(JSON.stringify({ success: false, error: err.message || String(err) }, null, 2) + "\n");
-  } else {
-    process.stderr.write(`✗ 错误: ${err.message || err}\n`);
-  }
+  return out.trimEnd();
 }
 
 /**
@@ -70,19 +58,10 @@ function outputError(err, format) {
  */
 async function publishCommand(input, options = {}) {
   const format = options.format || "json";
-  const resolvedKey = resolveApiKey(options.apiKey);
-
-  if (!resolvedKey) {
-    outputError(
-      { message: "缺少 API Key。请通过 -k 参数、AICONDUCTOR_API_KEY 环境变量或 .env 文件提供。" },
-      format
-    );
-    process.exit(1);
-  }
+  const apiKey = resolveKeyOrExit(options.apiKey, format);
 
   try {
     const { content, filePath } = resolveInput(input);
-    // 确定类型：--type 显式指定优先，否则自动检测
     let type = options.type;
     if (!type) {
       type = detectType(content, filePath);
@@ -93,24 +72,14 @@ async function publishCommand(input, options = {}) {
 
     let result;
     if (type === "html") {
-      result = await publishHtml(resolvedKey, content, options.title);
+      result = await publishHtml(apiKey, content, options.title);
     } else {
-      const addCopyButton = options.copyButton === true;
-      result = await publishMdToHtml(resolvedKey, content, options.title, addCopyButton);
+      result = await publishMdToHtml(apiKey, content, options.title, options.copyButton === true);
     }
-    outputResult(result, format);
+    outputResult(result, format, formatPublishText);
     process.exit(0);
   } catch (err) {
-    if (err.type === "http_error") {
-      outputError(
-        { message: `API 返回错误 (HTTP ${err.statusCode}): ${err.body?.message || JSON.stringify(err.body)}` },
-        format
-      );
-    } else if (err.type === "network_error") {
-      outputError({ message: `网络错误: ${err.message}` }, format);
-    } else {
-      outputError({ message: `未知错误: ${err.message || err}` }, format);
-    }
+    handleApiError(err, format);
     process.exit(1);
   }
 }
