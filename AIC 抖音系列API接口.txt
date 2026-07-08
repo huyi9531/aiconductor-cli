@@ -1,0 +1,417 @@
+# 获取作品详情
+
+## 接口信息
+- **URL**: `http://plugin.aiconductor.fun/api/douyin_video_info`
+- **方法**: `POST` / `GET`
+- **Content-Type**: `application/json`
+
+## 功能说明
+根据抖音视频分享链接获取视频详细信息，包括作者信息、统计数据、音乐信息等，按次计费（0.01元/次）。
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| share_url | string | 是 | - | 抖音视频分享链接 |
+| api_key | string | 是 | - | 计费系统API密钥 |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| success | boolean | 是否成功 |
+| message | string | 响应消息 |
+| data | object | 视频详情数据 |
+| billing | object | 计费信息 |
+| billing.service_fee | float | 服务费 |
+| billing.total_fee | float | 总费用 |
+| billing.discount_applied | boolean | 是否应用折扣 |
+| billing.balance_before | float | 扣费前余额 |
+| billing.balance_after | float | 扣费后余额 |
+| billing.currency | string | 货币类型（CNY） |
+| billing.transaction_id | string | 交易ID |
+
+## 注意事项
+1. 支持抖音分享链接和完整视频URL
+2. 自动解析短链接
+3. 返回视频详细信息包括作者、统计、音乐等
+
+# 获取作品评论
+
+## 接口信息
+- **URL**: `http://plugin.aiconductor.fun/api/douyin_video_comments`
+- **方法**: `POST` / `GET`
+- **Content-Type**: `application/json`
+
+## 功能说明
+根据抖音视频URL获取该视频的评论列表，按次计费（0.01元/次）。
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| video_url | string | 是 | - | 抖音视频URL |
+| max_count | integer | 否 | 50 | 获取评论数量 |
+| api_key | string | 是 | - | 计费系统API密钥 |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| success | boolean | 是否成功 |
+| message | string | 响应消息 |
+| data | object | 评论数据 |
+| billing | object | 计费信息 |
+| billing.service_fee | float | 服务费 |
+| billing.total_fee | float | 总费用 |
+| billing.discount_applied | boolean | 是否应用折扣 |
+| billing.balance_before | float | 扣费前余额 |
+| billing.balance_after | float | 扣费后余额 |
+| billing.currency | string | 货币类型（CNY） |
+| billing.transaction_id | string | 交易ID |
+
+## 注意事项
+1. 支持抖音分享链接和完整视频URL
+2. max_count默认获取50条评论
+3. 集成计费系统，按次收费
+
+# 获取用户视频_同步
+
+## 接口信息
+- **URL**: `http://plugin.aiconductor.fun/api/douyin_user_videos`
+- **方法**: `POST` / `GET`
+- **Content-Type**: `application/json`
+
+## 功能说明
+根据抖音用户主页URL获取该用户发布的视频列表，支持分页获取和时间限制，按页计费（0.03元/页）。
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| home_page | string | 是 | - | 抖音用户主页URL |
+| api_key | string | 是 | - | 计费系统API密钥 |
+| max_seconds | integer | 否 | 50 | 最长运行时间（秒），最大180 |
+| max_pages | integer | 否 | 1 | 最大页数 |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| success | boolean | 是否成功 |
+| message | string | 响应消息 |
+| data | object | 视频数据 |
+| data.aweme_list | array | 视频列表 |
+| data.aweme_list[].author | object | 作者信息（nickname、signature） |
+| data.aweme_list[].create_time | integer | 创建时间戳 |
+| data.aweme_list[].create_time_formatted | string | 格式化创建时间 |
+| data.aweme_list[].home_page | string | 用户主页URL |
+| data.aweme_list[].desc | string | 视频描述 |
+| data.aweme_list[].share_url | string | 分享链接 |
+| data.aweme_list[].duration | string | 视频时长（MM:SS） |
+| data.aweme_list[].statistics | object | 统计数据（点赞、收藏、评论、分享） |
+| billing | object | 计费信息 |
+| billing.service_fee | float | 每页服务费 |
+| billing.total_fee | float | 总费用 |
+| billing.discount_applied | boolean | 是否应用折扣 |
+| billing.pages_charged | integer | 计费页数 |
+| billing.balance_before | float | 扣费前余额 |
+| billing.balance_after | float | 扣费后余额 |
+| billing.currency | string | 货币类型（CNY） |
+| billing.transaction_ids | array | 交易ID列表 |
+
+## 注意事项
+1. 支持抖音短链接和长链接，自动解析
+2. max_seconds最大值为180秒
+3. 按页收费，每成功获取一页数据扣费一次
+4. 达到时间限制或页数限制时会自动停止翻页
+
+# 获取用户详情
+
+## 接口信息
+- **URL**: `http://plugin.aiconductor.fun/api/douyin_user_detail`
+- **方法**: `POST` / `GET`
+- **Content-Type**: `application/json`
+
+## 功能说明
+根据抖音用户主页URL获取用户详细信息，包括基本信息、统计数据、直播状态等。自动解析短链接并提取sec_user_id，按次计费（0.03元/秒）。
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| home_page | string | 是 | - | 抖音用户主页URL |
+| api_key | string | 是 | - | 计费系统API密钥 |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| success | boolean | 是否成功 |
+| message | string | 响应消息 |
+| data | object | 用户详情数据 |
+| data.identity | object | 身份信息（uid、sec_user_id、unique_id、nickname） |
+| data.profile | object | 资料信息（签名、头像、性别、年龄等） |
+| data.stats | object | 统计数据（关注数、粉丝数、作品数等） |
+| data.live | object | 直播信息（直播状态、房间ID） |
+| billing | object | 计费信息 |
+| billing.service_fee | float | 服务费 |
+| billing.total_fee | float | 总费用 |
+| billing.discount_applied | boolean | 是否应用折扣 |
+| billing.balance_before | float | 扣费前余额 |
+| billing.balance_after | float | 扣费后余额 |
+| billing.currency | string | 货币类型（CNY） |
+| billing.transaction_id | string | 交易ID |
+
+## 注意事项
+1. 支持抖音短链接和长链接，自动解析
+2. 返回分类后的用户信息（身份、资料、统计、直播）
+3. 集成计费系统，按次收费
+
+# 抖音用户搜索
+
+## 接口信息
+- **URL**: `http://plugin.aiconductor.fun/api/douyin_user_search`
+- **方法**: `POST` / `GET`
+- **Content-Type**: `application/json`
+
+## 功能说明
+根据关键词搜索抖音用户，支持通过粉丝数量和用户类型进行筛选查询，支持自动翻页，按页计费（0.15元/页）。
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| keyword | string | 是 | - | 搜索关键词 |
+| api_key | string | 是 | - | 计费系统API密钥 |
+| douyin_user_fans | string | 否 | "" | 粉丝数量筛选（见下方说明） |
+| douyin_user_type | string | 否 | "" | 用户类型筛选（见下方说明） |
+| max_pages | integer | 否 | 1 | 最大页数，0表示不限制 |
+| max_seconds | integer | 否 | 50 | 最长运行时间（秒），最大180 |
+
+### 粉丝数量筛选 (douyin_user_fans)
+
+| 值 | 说明 |
+|----|------|
+| "" | 不限 |
+| "0_1k" | 1000以下 |
+| "1k_1w" | 1000到1万 |
+| "1w_10w" | 1万到10万 |
+| "10w_100w" | 10万到100万 |
+| "100w_" | 100万以上 |
+
+### 用户类型筛选 (douyin_user_type)
+
+| 值 | 说明 |
+|----|------|
+| "" | 不限 |
+| "common_user" | 普通用户 |
+| "enterprise_user" | 企业认证用户 |
+| "personal_user" | 个人认证用户 |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| success | boolean | 是否成功 |
+| message | string | 响应消息 |
+| data | object | 搜索数据 |
+| data.user_list | array | 用户列表 |
+| data.user_list[].uid | string | 用户ID |
+| data.user_list[].nickname | string | 用户昵称 |
+| data.user_list[].gender | integer | 性别（0=未知，1=男，2=女） |
+| data.user_list[].unique_id | string | 抖音号 |
+| data.user_list[].sec_uid | string | 安全UID |
+| data.user_list[].signature | string | 个性签名 |
+| data.user_list[].follower_count | integer | 粉丝数量 |
+| data.user_list[].avatar_url | string | 头像URL |
+| data.user_list[].follow_status | integer | 是否已关注 |
+| data.user_list[].live_status | integer | 是否正在直播 |
+| data.user_list[].versatile_display | string | 抖音号展示文案 |
+| data.user_list[].account_cert_info | object | 账号认证信息 |
+| data.cursor | integer | 下一页游标 |
+| data.has_more | integer | 是否还有更多数据（1=有，0=无） |
+| billing | object | 计费信息 |
+| billing.service_fee | float | 每页服务费 |
+| billing.total_fee | float | 总费用 |
+| billing.discount_applied | boolean | 是否应用折扣 |
+| billing.pages_charged | integer | 计费页数 |
+| billing.balance_before | float | 扣费前余额 |
+| billing.balance_after | float | 扣费后余额 |
+| billing.currency | string | 货币类型（CNY） |
+| billing.transaction_ids | array | 交易ID列表 |
+
+## 注意事项
+1. 自动翻页，无需传入cursor和search_id
+2. max_seconds最大值为50秒
+3. 按页收费，每成功获取一页数据扣费一次
+4. 达到时间限制或页数限制时会自动停止翻页
+
+# 抖音视频搜索
+
+## 接口信息
+- **URL**: `http://plugin.aiconductor.fun/api/douyin_video_search`
+- **方法**: `POST` / `GET`
+- **Content-Type**: `application/json`
+- **鉴权**: 请求头 `Authorization: Bearer <api_key>`（兼容 body/query 中 `api_key` 参数）
+
+## 功能说明
+根据关键词搜索抖音视频，支持排序方式、发布时间、视频时长、内容类型等筛选条件，支持自动翻页，按页计费（0.15元/页）。
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| keyword | string | 是 | - | 搜索关键词 |
+| sort_type | string | 否 | "0" | 排序方式（见下方说明） |
+| publish_time | string | 否 | "0" | 发布时间筛选（见下方说明） |
+| filter_duration | string | 否 | "0" | 视频时长筛选（见下方说明） |
+| content_type | string | 否 | "0" | 内容类型筛选（见下方说明） |
+| max_pages | integer | 否 | 1 | 最大页数，0表示不限制 |
+| max_seconds | integer | 否 | 50 | 最长运行时间（秒），最大50 |
+
+### 排序方式 (sort_type)
+
+| 值 | 说明 |
+|----|------|
+| "0" | 综合排序 |
+| "1" | 最多点赞 |
+| "2" | 最新发布 |
+
+### 发布时间筛选 (publish_time)
+
+| 值 | 说明 |
+|----|------|
+| "0" | 不限 |
+| "1" | 最近一天 |
+| "7" | 最近一周 |
+| "180" | 最近半年 |
+
+### 视频时长筛选 (filter_duration)
+
+| 值 | 说明 |
+|----|------|
+| "0" | 不限 |
+| "0-1" | 1分钟以内 |
+| "1-5" | 1-5分钟 |
+| "5-10000" | 5分钟以上 |
+
+### 内容类型筛选 (content_type)
+
+| 值 | 说明 |
+|----|------|
+| "0" | 不限 |
+| "1" | 视频 |
+| "2" | 图片 |
+| "3" | 文章 |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| success | boolean | 是否成功 |
+| message | string | 响应消息 |
+| data | object | 搜索数据 |
+| data.video_list | array | 视频列表 |
+| data.video_list[].aweme_id | string | 视频ID |
+| data.video_list[].desc | string | 视频描述 |
+| data.video_list[].create_time | integer | 创建时间戳 |
+| data.video_list[].share_url | string | 分享链接 |
+| data.video_list[].author | object | 作者信息 |
+| data.video_list[].author.uid | string | 用户ID |
+| data.video_list[].author.short_id | string | 短ID |
+| data.video_list[].author.nickname | string | 用户昵称 |
+| data.video_list[].author.sec_uid | string | 安全UID |
+| data.video_list[].author.unique_id | string | 抖音号 |
+| data.video_list[].author.signature | string | 个性签名 |
+| data.video_list[].author.follower_count | integer | 粉丝数量 |
+| data.video_list[].author.total_favorited | integer | 获赞总数 |
+| data.video_list[].author.is_verified | boolean | 是否认证 |
+| data.video_list[].author.verification_type | integer | 认证类型 |
+| data.video_list[].author.enterprise_verify_reason | string | 企业认证原因 |
+| data.video_list[].author.custom_verify | string | 自定义认证 |
+| data.video_list[].author.region | string | 地区 |
+| data.video_list[].author.avatar_url | string | 头像URL |
+| data.video_list[].music | object | 音乐信息 |
+| data.video_list[].music.id | integer | 音乐ID |
+| data.video_list[].music.title | string | 音乐标题 |
+| data.video_list[].music.author | string | 音乐作者 |
+| data.video_list[].music.duration | integer | 音乐时长（秒） |
+| data.video_list[].music.play_url | string | 音乐播放地址 |
+| data.video_list[].video | object | 视频信息 |
+| data.video_list[].video.duration | integer | 视频时长（毫秒） |
+| data.video_list[].video.ratio | string | 视频清晰度 |
+| data.video_list[].video.width | integer | 视频宽度 |
+| data.video_list[].video.height | integer | 视频高度 |
+| data.video_list[].video.play_url | string | 视频播放地址 |
+| data.video_list[].video.cover_url | string | 封面URL |
+| data.video_list[].video.dynamic_cover_url | string | 动态封面URL |
+| data.video_list[].video.origin_cover_url | string | 原始封面URL |
+| data.video_list[].statistics | object | 互动统计数据 |
+| data.video_list[].statistics.aweme_id | string | 视频ID |
+| data.video_list[].statistics.comment_count | integer | 评论数 |
+| data.video_list[].statistics.digg_count | integer | 点赞数 |
+| data.video_list[].statistics.download_count | integer | 下载数 |
+| data.video_list[].statistics.play_count | integer | 播放数 |
+| data.video_list[].statistics.share_count | integer | 分享数 |
+| data.video_list[].statistics.forward_count | integer | 转发数 |
+| data.video_list[].statistics.collect_count | integer | 收藏数 |
+| data.video_list[].video_tag | array | 视频标签列表 |
+| data.video_list[].video_tag[].tag_id | integer | 标签ID |
+| data.video_list[].video_tag[].tag_name | string | 标签名称 |
+| data.video_list[].video_tag[].level | integer | 标签级别 |
+| data.cursor | integer | 下一页游标 |
+| data.has_more | integer | 是否还有更多数据（1=有，0=无） |
+| billing | object | 计费信息 |
+| billing.service_fee | float | 每页服务费 |
+| billing.total_fee | float | 总费用 |
+| billing.discount_applied | boolean | 是否应用折扣 |
+| billing.pages_charged | integer | 计费页数 |
+| billing.balance_before | float | 扣费前余额 |
+| billing.balance_after | float | 扣费后余额 |
+| billing.currency | string | 货币类型（CNY） |
+| billing.transaction_ids | array | 交易ID列表 |
+
+## 注意事项
+1. 自动翻页，无需手动配置
+2. max_seconds最大值为50秒
+3. 按页收费，每成功获取一页数据扣费一次
+4. 达到时间限制或页数限制时会自动停止翻页
+
+# 作品链接转文字_v2
+
+## 接口信息
+- **URL**: `http://plugin.aiconductor.fun/api/douyin_link_to_text_v2`
+- **方法**: `POST` / `GET`
+- **Content-Type**: `application/json`
+
+## 功能说明
+将抖音视频链接中的语音转换为文字（增强版）。支持两套语音识别策略，自动检测转写准确度，按量计费（视频下载0.01元/次，文本转写0.0003元/秒）。
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 默认值 | 说明 |
+|--------|------|------|--------|------|
+| api_key | string | 是 | - | 计费系统API密钥 |
+| video_url | string | 是 | - | 抖音视频URL（支持分享链接） |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| success | boolean | 是否成功 |
+| message | string | 响应消息 |
+| text | string | 转写文本结果 |
+| billing | object | 计费信息 |
+| billing.service_fee | float | 服务费 |
+| billing.total_fee | float | 总费用 |
+| billing.discount_applied | boolean | 是否应用折扣 |
+| billing.balance_before | float | 扣费前余额 |
+| billing.balance_after | float | 扣费后余额 |
+| billing.currency | string | 货币类型（CNY） |
+| billing.transaction_id | string | 交易ID |
+
+## 注意事项
+1. 支持抖音分享链接和完整视频URL
+2. 支持两套语音识别策略，成功率更高
+3. 自动检测转写准确度，确保结果质量

@@ -6,6 +6,13 @@ const API_HOST = "plugin.aiconductor.fun";
 const API_PATH = "/api/html_publish";
 const MD_TO_HTML_API_PATH = "/api/md_to_html";
 const SEARCH_API_PATH = "/api/aic_web_search";
+const DOUYIN_VIDEO_INFO_PATH = "/api/douyin_video_info";
+const DOUYIN_VIDEO_COMMENTS_PATH = "/api/douyin_video_comments";
+const DOUYIN_USER_VIDEOS_PATH = "/api/douyin_user_videos";
+const DOUYIN_USER_DETAIL_PATH = "/api/douyin_user_detail";
+const DOUYIN_USER_SEARCH_PATH = "/api/douyin_user_search";
+const DOUYIN_VIDEO_SEARCH_PATH = "/api/douyin_video_search";
+const DOUYIN_LINK_TO_TEXT_PATH = "/api/douyin_link_to_text_v2";
 
 /**
  * 解析 API Key，三级优先级：命令行参数 > 系统环境变量 > .env 文件
@@ -160,4 +167,133 @@ async function publishMdToHtml(apiKey, mdText, filename, addCopyButton = false) 
   return safe;
 }
 
-module.exports = { resolveApiKey, publishHtml, publishMdToHtml, webSearch };
+/**
+ * 获取抖音作品详情
+ * @param {string} apiKey
+ * @param {string} shareUrl
+ * @returns {Promise<object>}
+ */
+async function douyinVideoInfo(apiKey, shareUrl) {
+  const resp = await httpPost(API_HOST, DOUYIN_VIDEO_INFO_PATH, {
+    api_key: apiKey,
+    share_url: shareUrl,
+  });
+  const { billing, ...safe } = resp;
+  return safe;
+}
+
+/**
+ * 获取抖音作品评论
+ * @param {string} apiKey
+ * @param {string} videoUrl
+ * @param {number} [maxCount=50]
+ * @returns {Promise<object>}
+ */
+async function douyinVideoComments(apiKey, videoUrl, maxCount) {
+  const body = { api_key: apiKey, video_url: videoUrl };
+  if (maxCount !== undefined && maxCount !== null) body.max_count = maxCount;
+  const resp = await httpPost(API_HOST, DOUYIN_VIDEO_COMMENTS_PATH, body);
+  const { billing, ...safe } = resp;
+  return safe;
+}
+
+/**
+ * 获取抖音用户视频列表
+ * @param {string} apiKey
+ * @param {string} homePage
+ * @param {number} [maxSeconds=50]
+ * @param {number} [maxPages=1]
+ * @returns {Promise<object>}
+ */
+async function douyinUserVideos(apiKey, homePage, maxSeconds, maxPages) {
+  const body = { api_key: apiKey, home_page: homePage };
+  if (maxSeconds !== undefined && maxSeconds !== null) body.max_seconds = maxSeconds;
+  if (maxPages !== undefined && maxPages !== null) body.max_pages = maxPages;
+  const resp = await httpPost(API_HOST, DOUYIN_USER_VIDEOS_PATH, body);
+  const { billing, ...safe } = resp;
+  return safe;
+}
+
+/**
+ * 获取抖音用户详情
+ * @param {string} apiKey
+ * @param {string} homePage
+ * @returns {Promise<object>}
+ */
+async function douyinUserDetail(apiKey, homePage) {
+  const resp = await httpPost(API_HOST, DOUYIN_USER_DETAIL_PATH, {
+    api_key: apiKey,
+    home_page: homePage,
+  });
+  const { billing, ...safe } = resp;
+  return safe;
+}
+
+/**
+ * 搜索抖音用户
+ * @param {string} apiKey
+ * @param {string} keyword
+ * @param {object} [opts]
+ * @returns {Promise<object>}
+ */
+async function douyinUserSearch(apiKey, keyword, opts = {}) {
+  const body = { api_key: apiKey, keyword };
+  if (opts.maxPages !== undefined && opts.maxPages !== null) body.max_pages = opts.maxPages;
+  if (opts.maxSeconds !== undefined && opts.maxSeconds !== null) body.max_seconds = opts.maxSeconds;
+  if (opts.fansRange) body.douyin_user_fans = opts.fansRange;
+  if (opts.userType) body.douyin_user_type = opts.userType;
+  const resp = await httpPost(API_HOST, DOUYIN_USER_SEARCH_PATH, body);
+  const { billing, ...safe } = resp;
+  return safe;
+}
+
+/**
+ * 搜索抖音视频
+ * @param {string} apiKey
+ * @param {string} keyword
+ * @param {object} [opts]
+ * @returns {Promise<object>}
+ */
+async function douyinVideoSearch(apiKey, keyword, opts = {}) {
+  const body = { keyword };
+  if (opts.sortType !== undefined) body.sort_type = opts.sortType;
+  if (opts.publishTime !== undefined) body.publish_time = opts.publishTime;
+  if (opts.filterDuration !== undefined) body.filter_duration = opts.filterDuration;
+  if (opts.contentType !== undefined) body.content_type = opts.contentType;
+  if (opts.maxPages !== undefined && opts.maxPages !== null) body.max_pages = opts.maxPages;
+  if (opts.maxSeconds !== undefined && opts.maxSeconds !== null) body.max_seconds = opts.maxSeconds;
+  const resp = await httpPost(API_HOST, DOUYIN_VIDEO_SEARCH_PATH, body, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+  const { billing, ...safe } = resp;
+  return safe;
+}
+
+/**
+ * 抖音作品链接转文字
+ * @param {string} apiKey
+ * @param {string} videoUrl
+ * @returns {Promise<object>}
+ */
+async function douyinLinkToText(apiKey, videoUrl) {
+  const resp = await httpPost(API_HOST, DOUYIN_LINK_TO_TEXT_PATH, {
+    api_key: apiKey,
+    video_url: videoUrl,
+  });
+  const { billing, ...safe } = resp;
+  return safe;
+}
+
+module.exports = {
+  resolveApiKey,
+  publishHtml,
+  publishMdToHtml,
+  webSearch,
+  douyinVideoInfo,
+  douyinVideoComments,
+  douyinUserVideos,
+  douyinUserDetail,
+  douyinUserSearch,
+  douyinVideoSearch,
+  douyinLinkToText,
+};

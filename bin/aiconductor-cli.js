@@ -4,6 +4,15 @@ const { Command } = require("commander");
 const { publishCommand } = require("../src/commands/html_publish");
 const { publishCommand: webpagePublishCommand } = require("../src/commands/md_publish");
 const { searchCommand } = require("../src/commands/web_search");
+const {
+  videoInfoCommand,
+  videoCommentsCommand,
+  userVideosCommand,
+  userDetailCommand,
+  userSearchCommand,
+  videoSearchCommand,
+  linkToTextCommand,
+} = require("../src/commands/douyin");
 
 const program = new Command();
 
@@ -78,6 +87,82 @@ searchCmd
   .action((query, options) => {
     searchCommand(query, "image", options);
   });
+
+// 未知命令处理
+
+// douyin 子命令组
+const douyinCmd = program
+  .command("douyin")
+  .description("抖音数据工具箱");
+
+douyinCmd
+  .command("video-info")
+  .description("获取抖音作品详情（0.01元/次）")
+  .argument("<share_url>", "抖音视频分享链接")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((shareUrl, options) => { videoInfoCommand(shareUrl, options); });
+
+douyinCmd
+  .command("video-comments")
+  .description("获取抖音作品评论（0.01元/次）")
+  .argument("<video_url>", "抖音视频URL")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--max-count <n>", "获取评论数量", "50")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((videoUrl, options) => { videoCommentsCommand(videoUrl, options); });
+
+douyinCmd
+  .command("user-videos")
+  .description("获取抖音用户视频列表（0.03元/页）")
+  .argument("<home_page>", "抖音用户主页URL")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--max-pages <n>", "最大页数", "1")
+  .option("--max-seconds <n>", "最长运行时间（秒），最大180", "50")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((homePage, options) => { userVideosCommand(homePage, options); });
+
+douyinCmd
+  .command("user-detail")
+  .description("获取抖音用户详情（0.03元/次）")
+  .argument("<home_page>", "抖音用户主页URL")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((homePage, options) => { userDetailCommand(homePage, options); });
+
+douyinCmd
+  .command("user-search")
+  .description("搜索抖音用户（0.15元/页）")
+  .argument("<keyword>", "搜索关键词")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--max-pages <n>", "最大页数，0=不限制", "1")
+  .option("--max-seconds <n>", "最长运行时间（秒），最大180", "50")
+  .option("--fans-range <range>", "粉丝数量筛选：0_1k/1k_1w/1w_10w/10w_100w/100w_")
+  .option("--user-type <type>", "用户类型筛选：common_user/enterprise_user/personal_user")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((keyword, options) => { userSearchCommand(keyword, options); });
+
+douyinCmd
+  .command("video-search")
+  .description("搜索抖音视频（0.15元/页）")
+  .argument("<keyword>", "搜索关键词")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--max-pages <n>", "最大页数，0=不限制", "1")
+  .option("--max-seconds <n>", "最长运行时间（秒），最大50", "50")
+  .option("--sort-type <type>", "排序方式：0=综合，1=最多点赞，2=最新发布", "0")
+  .option("--publish-time <time>", "发布时间：0=不限，1=一天，7=一周，180=半年", "0")
+  .option("--filter-duration <dur>", "视频时长：0=不限，0-1=1分钟内，1-5=1-5分钟，5-10000=5分钟以上", "0")
+  .option("--content-type <type>", "内容类型：0=不限，1=视频，2=图片，3=文章", "0")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((keyword, options) => { videoSearchCommand(keyword, options); });
+
+douyinCmd
+  .command("link-to-text")
+  .description("抖音作品链接转文字（0.01元/次 + 0.0003元/秒）")
+  .argument("<video_url>", "抖音视频URL")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((videoUrl, options) => { linkToTextCommand(videoUrl, options); });
 
 // 未知命令处理
 program.on("command:*", () => {
