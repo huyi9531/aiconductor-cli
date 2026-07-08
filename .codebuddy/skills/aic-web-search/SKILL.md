@@ -1,6 +1,5 @@
 ---
 name: aic-web-search
-description: |
 description: 通过 AIConductor CLI 进行网页搜索和图片搜索。当用户需要搜索网络信息、查找网页内容、搜索图片时应使用此 Skill。触发词包括：搜索/搜一下/查一下/网页搜索/图片搜索/联网搜索/web search/image search。
 ---
 
