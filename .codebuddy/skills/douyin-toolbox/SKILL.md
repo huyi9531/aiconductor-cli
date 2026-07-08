@@ -1,14 +1,15 @@
 ---
 name: douyin-toolbox
 description: |
-  抖音数据获取与处理工具箱。
-  当用户需要获取抖音视频详情、评论、主页视频、搜索、或将视频语音转文字时调用此技能。
-  触发词包括：抖音下载、抓评论、爬数据、视频详情、用户主页、抖音搜索、视频转文字、douyin。
+  抖音数据获取与处理工具箱，支持视频详情、评论抓取、用户主页、视频搜索、语音转文字等功能。
+  当用户需要操作抖音数据时使用，例如：(1) 查看某个视频的详细信息或评论，(2) 获取用户主页视频列表或用户资料，(3) 按关键词搜索抖音用户或视频，(4) 将抖音视频语音转为文字，(5) 任何涉及抖音数据提取或分析的任务。
 ---
 
 ## 概述
 
 此 Skill 通过全局安装的 `aiconductor-cli` 命令行工具，调用 AIC 抖音系列 API，支持视频详情、评论抓取、用户视频、用户详情、用户搜索、视频搜索、链接转文字共 7 个功能。
+
+适用环境默认已配置好 CLI 和 API Key。当遇到安装或配置问题时，读取 [references/aiconductor-skills-setup.md](references/aiconductor-skills-setup.md)。仅当用户明确要求初始化或配置 Skill 时才主动读取该文件。
 
 ## 使用流程
 
@@ -207,8 +208,7 @@ aiconductor-cli douyin link-to-text "https://v.douyin.com/xxx/"
 
 ### 错误处理
 
-- 缺少 API Key → 提示用户前往 https://dev.aiconductor.fun/register 注册获取
-- CLI 未安装 / command not found → 执行 `npm install -g aiconductor-cli@latest`，安装后重试原命令
+- 缺少 API Key / CLI 未安装 / command not found → 读取 [references/aiconductor-skills-setup.md](references/aiconductor-skills-setup.md) 并按其步骤处理
 - API 返回错误 → 展示错误信息给用户
 
 ## 注意事项
