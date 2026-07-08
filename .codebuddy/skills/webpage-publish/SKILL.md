@@ -1,9 +1,7 @@
 ---
 name: webpage-publish
 description: |
-  将 Markdown 文本/文件或 HTML 代码发布为在线网页。
-  当用户要求将 Markdown 或 HTML 内容发布到网上、部署网页、把内容变成在线链接时应使用此 Skill。
-  触发词包括：发布/部署/上线网页/页面、把 MD/HTML 转成在线链接、生成在线文档、Markdown 转 HTML 发布。
+description: 将 Markdown 文本/文件或 HTML 代码发布为在线网页。当用户要求将 Markdown 或 HTML 内容发布到网上、部署网页、把内容变成在线链接时应使用此 Skill。触发词包括：发布/部署/上线网页/页面、把 MD/HTML 转成在线链接、生成在线文档、Markdown 转 HTML 发布。
 ---
 
 ## 概述
