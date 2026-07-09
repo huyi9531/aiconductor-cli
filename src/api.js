@@ -13,6 +13,7 @@ const DOUYIN_USER_DETAIL_PATH = "/api/douyin_user_detail";
 const DOUYIN_USER_SEARCH_PATH = "/api/douyin_user_search";
 const DOUYIN_VIDEO_SEARCH_PATH = "/api/douyin_video_search";
 const DOUYIN_LINK_TO_TEXT_PATH = "/api/douyin_link_to_text_v2";
+const XHS_NOTE_PUBLISH_PATH = "/api/xhs_note_publish";
 
 /**
  * 解析 API Key，三级优先级：命令行参数 > 系统环境变量 > .env 文件
@@ -300,6 +301,27 @@ async function douyinLinkToText(apiKey, videoUrl) {
   return stripBilling(resp);
 }
 
+/**
+ * 小红书笔记发布 — 生成扫码发布 H5 页面与二维码
+ * @param {string} apiKey
+ * @param {{ type: string, title?: string, content?: string, images?: string[], video?: string, cover?: string, transferToOss?: boolean }} params
+ * @returns {Promise<object>}
+ */
+async function xhsNotePublish(apiKey, params) {
+  const body = { type: params.type };
+  if (params.title) body.title = params.title;
+  if (params.content) body.content = params.content;
+  if (params.images && params.images.length > 0) body.images = params.images;
+  if (params.video) body.video = params.video;
+  if (params.cover) body.cover = params.cover;
+  if (params.transferToOss !== undefined) body.transfer_to_oss = params.transferToOss;
+
+  const resp = await httpPost(API_HOST, XHS_NOTE_PUBLISH_PATH, body, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+  return stripBilling(resp);
+}
+
 module.exports = {
   resolveApiKey,
   publishHtml,
@@ -312,4 +334,5 @@ module.exports = {
   douyinUserSearch,
   douyinVideoSearch,
   douyinLinkToText,
+  xhsNotePublish,
 };

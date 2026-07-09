@@ -13,6 +13,7 @@ const {
   videoSearchCommand,
   linkToTextCommand,
 } = require("../src/commands/douyin");
+const { notePublishCommand } = require("../src/commands/xhs");
 
 const program = new Command();
 
@@ -163,6 +164,25 @@ douyinCmd
   .option("-k, --api-key <key>", "AIConductor API Key")
   .option("-f, --format <format>", "输出格式：json 或 text", "json")
   .action((videoUrl, options) => { linkToTextCommand(videoUrl, options); });
+
+// xhs 子命令组
+const xhsCmd = program
+  .command("xhs")
+  .description("小红书数据工具箱");
+
+xhsCmd
+  .command("note-publish")
+  .description("生成小红书扫码发布页与二维码（图文0.05元/次，含OSS转存0.1元/次）")
+  .argument("<type>", "笔记类型：normal（图文）或 video（视频）")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("-t, --title <title>", "笔记标题（最多20字符）")
+  .option("--content <text>", "笔记正文（最多1000字符）")
+  .option("--images <urls>", "图片公网URL列表，逗号分隔（normal类型必填，最多18张）")
+  .option("--video <url>", "视频公网URL（video类型必填）")
+  .option("--cover <url>", "视频封面图公网URL（仅video类型有效）")
+  .option("--transfer-to-oss", "是否将素材转存到云端（更稳定，7天有效）")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((type, options) => { notePublishCommand(type, options); });
 
 // 未知命令处理
 program.on("command:*", () => {
