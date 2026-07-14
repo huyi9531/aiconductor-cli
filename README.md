@@ -264,7 +264,6 @@ aiconductor-cli xhs note-publish video \
 | `--cover-file <path>` | 本地视频封面路径 | 无 |
 | `--cover-base64 <data>` | 封面 Base64、data URL 或 `@文本文件` | 无 |
 | `--upload-valid-days <days>` | 本地/Base64 素材临时链接有效期：1 或 7 天 | 7 |
-| `--transfer-to-oss` | 让发布接口再次转存全部素材 | 关闭 |
 
 本地文件会在 CLI 内转换成 data URL，与 Base64 素材统一通过 JSON 接口免费上传为临时公开 URL，不使用 multipart。图片合计最多 18 张、单张最多 32MB；本地/Base64 视频受上传接口限制为 100MB，URL 视频上限为 200MB。
 
@@ -288,7 +287,7 @@ aiconductor-cli xhs note-publish video \
 | 抖音用户搜索 | 0.15 元/页 |
 | 抖音视频搜索 | 0.15 元/页 |
 | 抖音链接转文字 | 0.01 元/次 + 0.0003 元/秒 |
-| 小红书扫码发布 | 0.05 元/次；开启 `--transfer-to-oss` 为 0.1 元/次 |
+| 小红书扫码发布 | 0.05 元/次 |
 
 > 搜索/调用失败不扣费，仅成功时计费。
 

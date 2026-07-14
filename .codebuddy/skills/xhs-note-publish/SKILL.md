@@ -41,7 +41,6 @@ description: 小红书扫码发布 — 生成小红书图文/视频笔记的扫�
 | 正文 | 笔记正文，最多 1000 字符 | 否 |
 | 封面图 | URL、本地文件、Base64 三选一（仅 video 类型） | 否 |
 | 临时链接有效期 | 本地/Base64 素材上传后的有效期，1 或 7 天 | 否，默认 7 天 |
-| 是否 OSS 转存 | 将素材转存云端更稳定，7 天有效 | 否，默认不转存 |
 
 ### 3. 执行发布
 
@@ -90,8 +89,6 @@ aiconductor-cli xhs note-publish video \
   --cover-file "./cover.jpg"
 ```
 
-> `--transfer-to-oss` 是一个布尔标志，加上即表示开启（无需传值）。开启后素材会转存到云端，链接 7 天内有效，费用从 0.05 元变为 0.1 元/次。
-
 若用户需要人类可读输出：
 
 ```bash
@@ -112,7 +109,6 @@ JSON 格式输出示例：
       "id": "3502cf75-...-b8620053c7bf",
       "url": "https://oss.aiconductor.fun/temporary_7/xhs_note_publish/.../index.html",
       "qrcode": "data:image/png;base64,iVBORw0KGgo...",
-      "transfer_to_oss": false,
       "media": {
         "images": ["https://example.com/photo1.jpg"],
         "video": null,
@@ -129,7 +125,6 @@ JSON 格式输出示例：
 - **`data.data.qrcode`** — 二维码 base64 图片（`data:image/png;base64,...`），手机扫码即可打开发布页
 - **`data.data.id`** — 笔记唯一标识 UUID
 - **`data.data.media`** — 最终使用的素材列表（images / video / cover）
-- **`data.data.transfer_to_oss`** — 是否执行了 OSS 转存
 
 **返回给用户时，优先展示 H5 链接和二维码。** 二维码 base64 可以直接嵌入 HTML img 标签在聊天中预览。
 
@@ -162,15 +157,13 @@ JSON 格式输出示例：
 | `--cover-file <path>` | 本地视频封面路径 | 无 |
 | `--cover-base64 <data>` | 视频封面 Base64、data URL 或 `@文本文件` | 无 |
 | `--upload-valid-days <days>` | 本地/Base64 素材临时链接有效期：1 或 7 天 | `7` |
-| `--transfer-to-oss` | 素材转存云端（更稳定，7 天有效） | 关闭 |
 | `-k, --api-key <key>` | AIConductor API Key | 环境变量或 .env |
 | `-f, --format <format>` | 输出格式：`json` 或 `text` | `json` |
 
 ## 注意事项
 
 1. 采用后扣费模式：仅页面生成成功时才扣费，参数校验失败或素材下载失败不扣费
-2. 图文笔记 0.05 元/次；如果开启 `--transfer-to-oss` 则 0.1 元/次
-3. 本地/Base64 素材预上传免费；使用这些素材时通常无需再开启 `--transfer-to-oss`
+2. 发布页生成 0.05 元/次，本地/Base64 素材预上传免费
 4. 临时上传链接有效期为 1 或 7 天，过期自动清理；应在有效期内完成发布
 5. 素材 URL 必须为公网可访问的 HTTP(S) 地址，内网 IP 和 localhost 将被拒绝
 6. URL 视频上限 200MB；本地/Base64 视频受上传接口限制为 100MB；图片上限 32MB

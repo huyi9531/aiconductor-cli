@@ -88,7 +88,6 @@ function textFormatter(resp) {
   lines.push(`  H5 地址:  ${d.url}`);
   if (resp.message) lines.push(`  消息:     ${resp.message}`);
   if (d.qrcode) lines.push(`  二维码:   ${d.qrcode.substring(0, 50)}...`);
-  if (d.transfer_to_oss) lines.push(`  OSS转存:  是`);
   if (d.media) {
     if (d.media.images) lines.push(`  图片:     ${d.media.images.length} 张`);
     if (d.media.video) lines.push(`  视频:     ${d.media.video}`);
@@ -214,7 +213,6 @@ async function notePublishCommand(type, options = {}) {
       images,
       video,
       cover,
-      transferToOss: Boolean(options.transferToOss),
     });
     outputResult(result, format, textFormatter);
     process.exit(0);

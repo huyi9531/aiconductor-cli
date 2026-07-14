@@ -417,7 +417,7 @@ async function douyinLinkToText(apiKey, videoUrl) {
 /**
  * 小红书笔记发布 — 生成扫码发布 H5 页面与二维码
  * @param {string} apiKey
- * @param {{ type: string, title?: string, content?: string, images?: string[], video?: string, cover?: string, transferToOss?: boolean }} params
+ * @param {{ type: string, title?: string, content?: string, images?: string[], video?: string, cover?: string }} params
  * @returns {Promise<object>}
  */
 async function xhsNotePublish(apiKey, params) {
@@ -427,7 +427,6 @@ async function xhsNotePublish(apiKey, params) {
   if (params.images && params.images.length > 0) body.images = params.images;
   if (params.video) body.video = params.video;
   if (params.cover) body.cover = params.cover;
-  if (params.transferToOss !== undefined) body.transfer_to_oss = params.transferToOss;
 
   const resp = await httpPost(API_HOST, XHS_NOTE_PUBLISH_PATH, body, {
     Authorization: `Bearer ${apiKey}`,

@@ -176,7 +176,7 @@ const xhsCmd = program
 
 xhsCmd
   .command("note-publish")
-  .description("生成小红书扫码发布页与二维码（图文0.05元/次，含OSS转存0.1元/次）")
+  .description("生成小红书扫码发布页与二维码（0.05元/次）")
   .argument("<type>", "笔记类型：normal（图文）或 video（视频）")
   .option("-k, --api-key <key>", "AIConductor API Key")
   .option("-t, --title <title>", "笔记标题（最多20字符）")
@@ -191,7 +191,6 @@ xhsCmd
   .option("--cover-file <path>", "本地视频封面路径（仅video类型有效）")
   .option("--cover-base64 <data>", "视频封面Base64/data URL/@文本文件（仅video类型）")
   .option("--upload-valid-days <days>", "本地/Base64素材临时链接有效期：1或7天", "7")
-  .option("--transfer-to-oss", "是否将素材转存到云端（更稳定，7天有效）")
   .option("-f, --format <format>", "输出格式：json 或 text", "json")
   .action((type, options) => { notePublishCommand(type, options); });
 
