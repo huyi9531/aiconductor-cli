@@ -1,6 +1,6 @@
 # AIConductor CLI
 
-AIConductor 平台命令行工具箱，提供网页发布、搜索和抖音数据功能。
+AIConductor 平台命令行工具箱，提供网页发布、搜索、抖音数据和小红书扫码发布功能。
 
 ## 安装
 
@@ -8,7 +8,7 @@ AIConductor 平台命令行工具箱，提供网页发布、搜索和抖音数�
 npm install -g aiconductor-cli
 ```
 
-**Node.js >= 16.0.0** 环境。
+**Node.js >= 18.0.0** 环境。
 
 ## 配置 API Key
 
@@ -229,6 +229,45 @@ aiconductor-cli douyin link-to-text <视频URL> [选项]
 aiconductor-cli douyin link-to-text "https://www.douyin.com/video/xxxxx"
 ```
 
+### 小红书扫码发布
+
+生成图文或视频笔记的 H5 发布页与二维码。素材支持公网 URL、本地文件、Base64/data URL，以及包含 Base64 内容的文本文件。
+
+```bash
+# 图文：URL 与本地图片混用
+aiconductor-cli xhs note-publish normal \
+  --title "笔记标题" \
+  --images "https://example.com/photo1.jpg" \
+  --image-file "./photo2.jpg" \
+  --image-file "./photo3.png"
+
+# 图文：较大 Base64 写入文本文件后使用 @路径
+aiconductor-cli xhs note-publish normal \
+  --image-base64 "@./photo-base64.txt"
+
+# 视频：本地视频与本地封面
+aiconductor-cli xhs note-publish video \
+  --title "视频标题" \
+  --video-file "./video.mp4" \
+  --cover-file "./cover.jpg"
+```
+
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| `--images <urls>` | 图片 URL 列表，逗号分隔 | 无 |
+| `--image-file <path>` | 本地图片路径，可重复使用 | 无 |
+| `--image-base64 <data>` | 图片 Base64、data URL 或 `@文本文件`，可重复使用 | 无 |
+| `--video <url>` | 视频 URL | 无 |
+| `--video-file <path>` | 本地视频路径 | 无 |
+| `--video-base64 <data>` | 视频 Base64、data URL 或 `@文本文件` | 无 |
+| `--cover <url>` | 视频封面 URL | 无 |
+| `--cover-file <path>` | 本地视频封面路径 | 无 |
+| `--cover-base64 <data>` | 封面 Base64、data URL 或 `@文本文件` | 无 |
+| `--upload-valid-days <days>` | 本地/Base64 素材临时链接有效期：1 或 7 天 | 7 |
+| `--transfer-to-oss` | 让发布接口再次转存全部素材 | 关闭 |
+
+本地文件会在 CLI 内转换成 data URL，与 Base64 素材统一通过 JSON 接口免费上传为临时公开 URL，不使用 multipart。图片合计最多 18 张、单张最多 32MB；本地/Base64 视频受上传接口限制为 100MB，URL 视频上限为 200MB。
+
 ### 通用选项
 
 所有命令支持：
@@ -249,6 +288,7 @@ aiconductor-cli douyin link-to-text "https://www.douyin.com/video/xxxxx"
 | 抖音用户搜索 | 0.15 元/页 |
 | 抖音视频搜索 | 0.15 元/页 |
 | 抖音链接转文字 | 0.01 元/次 + 0.0003 元/秒 |
+| 小红书扫码发布 | 0.05 元/次；开启 `--transfer-to-oss` 为 0.1 元/次 |
 
 > 搜索/调用失败不扣费，仅成功时计费。
 

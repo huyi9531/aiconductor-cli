@@ -14,6 +14,8 @@ const DOUYIN_USER_SEARCH_PATH = "/api/douyin_user_search";
 const DOUYIN_VIDEO_SEARCH_PATH = "/api/douyin_video_search";
 const DOUYIN_LINK_TO_TEXT_PATH = "/api/douyin_link_to_text_v2";
 const XHS_NOTE_PUBLISH_PATH = "/api/xhs_note_publish";
+const R2_UPLOADER_PATH = "/api/r2_uploader";
+const MAX_R2_FILE_SIZE = 100 * 1024 * 1024;
 
 /**
  * 解析 API Key，三级优先级：命令行参数 > 系统环境变量 > .env 文件
@@ -73,14 +75,13 @@ function validateInt(value, name) {
  * @param {object} body
  * @returns {Promise<object>}
  */
-function httpPost(host, path, body, headers = {}) {
+function httpPost(host, requestPath, body, headers = {}) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
-
     const options = {
       hostname: host,
       port: 443,
-      path: path,
+      path: requestPath,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -121,6 +122,118 @@ function httpPost(host, path, body, headers = {}) {
     req.write(data);
     req.end();
   });
+}
+
+function contentTypeForFilename(filename) {
+  const types = {
+    ".avif": "image/avif",
+    ".bmp": "image/bmp",
+    ".gif": "image/gif",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".avi": "video/x-msvideo",
+    ".m4v": "video/x-m4v",
+    ".mkv": "video/x-matroska",
+    ".mov": "video/quicktime",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+  };
+  return types[path.extname(filename).toLowerCase()] || "application/octet-stream";
+}
+
+function contentTypeForBase64(value, fallback) {
+  const prefix = Buffer.from(value.replace(/\s/g, "").slice(0, 64), "base64");
+  if (prefix.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return "image/png";
+  }
+  if (prefix[0] === 0xff && prefix[1] === 0xd8 && prefix[2] === 0xff) return "image/jpeg";
+  if (prefix.toString("ascii", 0, 2) === "BM") return "image/bmp";
+  if (prefix.toString("ascii", 0, 3) === "GIF") return "image/gif";
+  if (prefix.toString("ascii", 0, 4) === "RIFF" && prefix.toString("ascii", 8, 12) === "WEBP") {
+    return "image/webp";
+  }
+  if (prefix.toString("ascii", 0, 4) === "RIFF" && prefix.toString("ascii", 8, 11) === "AVI") {
+    return "video/x-msvideo";
+  }
+  if (prefix.toString("ascii", 4, 8) === "ftyp") {
+    const brand = prefix.toString("ascii", 8, 12);
+    if (["heic", "heix", "hevc", "hevx", "mif1", "msf1"].includes(brand)) return "image/heic";
+    if (["avif", "avis"].includes(brand)) return "image/avif";
+    return brand === "qt  " ? "video/quicktime" : "video/mp4";
+  }
+  if (prefix.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return "video/webm";
+  return fallback || "application/octet-stream";
+}
+
+/**
+ * 上传远程文件、本地文件或 Base64 内容到临时 R2。
+ * @param {string} apiKey
+ * @param {{ filePath?: string, fileUrl?: string, fileBase64?: string, filename?: string, defaultContentType?: string, validDays?: number }} params
+ * @returns {Promise<object>}
+ */
+async function r2Upload(apiKey, params) {
+  const sourceCount = [params.filePath, params.fileUrl, params.fileBase64]
+    .filter((value) => value !== undefined && value !== null).length;
+  if (sourceCount !== 1) {
+    throw Object.assign(new Error("filePath、fileUrl、fileBase64 必须且只能提供一个"), {
+      type: "validation_error",
+    });
+  }
+
+  const validDays = params.validDays === undefined ? 1 : Number(params.validDays);
+  if (validDays !== 1 && validDays !== 7) {
+    throw Object.assign(new Error(`validDays 仅支持 1 或 7，收到: ${params.validDays}`), {
+      type: "validation_error",
+    });
+  }
+
+  let fileBase64 = params.fileBase64;
+  let filename = params.filename;
+  if (params.filePath) {
+    const absolutePath = path.resolve(params.filePath);
+    let stat;
+    try {
+      stat = await fs.promises.stat(absolutePath);
+    } catch (err) {
+      throw Object.assign(new Error(`无法读取本地文件 ${absolutePath}: ${err.message}`), {
+        type: "validation_error",
+      });
+    }
+    if (!stat.isFile()) {
+      throw Object.assign(new Error(`本地路径不是文件: ${absolutePath}`), {
+        type: "validation_error",
+      });
+    }
+    if (stat.size > MAX_R2_FILE_SIZE) {
+      throw Object.assign(new Error(`本地文件超过 100MB: ${absolutePath}`), {
+        type: "validation_error",
+      });
+    }
+
+    const file = await fs.promises.readFile(absolutePath);
+    filename = params.filename || path.basename(absolutePath);
+    fileBase64 = `data:${contentTypeForFilename(filename)};base64,${file.toString("base64")}`;
+  } else if (fileBase64 && !/^data:/i.test(fileBase64)) {
+    const compactBase64 = fileBase64.replace(/\s/g, "");
+    fileBase64 = `data:${contentTypeForBase64(compactBase64, params.defaultContentType)};base64,${compactBase64}`;
+  }
+
+  const body = { valid_days: validDays };
+  if (params.fileUrl) body.file_url = params.fileUrl;
+  if (fileBase64) body.file_base64 = fileBase64;
+  if (filename) body.filename = filename;
+  const resp = await httpPost(API_HOST, R2_UPLOADER_PATH, body, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+
+  if (!resp || resp.success === false || !resp.file_url) {
+    throw new Error(`R2 上传失败: ${resp?.message || "接口未返回 file_url"}`);
+  }
+  return stripBilling(resp);
 }
 
 /**
@@ -334,5 +447,6 @@ module.exports = {
   douyinUserSearch,
   douyinVideoSearch,
   douyinLinkToText,
+  r2Upload,
   xhsNotePublish,
 };

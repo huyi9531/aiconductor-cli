@@ -60,6 +60,10 @@ function handleApiError(err, format) {
     );
   } else if (err.type === "network_error") {
     outputError({ message: `网络错误: ${err.message}` }, format);
+  } else if (err.type === "validation_error") {
+    outputError({ message: `参数错误: ${err.message}` }, format);
+  } else if (err.type === "api_error") {
+    outputError({ message: err.message }, format);
   } else {
     outputError({ message: `未知错误: ${err.message || err}` }, format);
   }

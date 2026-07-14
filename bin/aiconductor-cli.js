@@ -17,6 +17,10 @@ const { notePublishCommand } = require("../src/commands/xhs");
 
 const program = new Command();
 
+function collect(value, previous) {
+  return previous ? previous.concat([value]) : [value];
+}
+
 program
   .name("aiconductor-cli")
   .description("AIConductor CLI 工具箱")
@@ -177,9 +181,16 @@ xhsCmd
   .option("-k, --api-key <key>", "AIConductor API Key")
   .option("-t, --title <title>", "笔记标题（最多20字符）")
   .option("--content <text>", "笔记正文（最多1000字符）")
-  .option("--images <urls>", "图片公网URL列表，逗号分隔（normal类型必填，最多18张）")
-  .option("--video <url>", "视频公网URL（video类型必填）")
-  .option("--cover <url>", "视频封面图公网URL（仅video类型有效）")
+  .option("--images <urls>", "图片公网URL列表，逗号分隔（normal类型，最多18张）")
+  .option("--image-file <path>", "本地图片路径，可重复使用（normal类型，最多18张）", collect)
+  .option("--image-base64 <data>", "图片Base64/data URL/@文本文件，可重复使用", collect)
+  .option("--video <url>", "视频公网URL（与--video-file、--video-base64三选一）")
+  .option("--video-file <path>", "本地视频路径（与--video、--video-base64三选一）")
+  .option("--video-base64 <data>", "视频Base64/data URL/@文本文件（与其他视频来源三选一）")
+  .option("--cover <url>", "视频封面图公网URL（与其他封面来源三选一）")
+  .option("--cover-file <path>", "本地视频封面路径（仅video类型有效）")
+  .option("--cover-base64 <data>", "视频封面Base64/data URL/@文本文件（仅video类型）")
+  .option("--upload-valid-days <days>", "本地/Base64素材临时链接有效期：1或7天", "7")
   .option("--transfer-to-oss", "是否将素材转存到云端（更稳定，7天有效）")
   .option("-f, --format <format>", "输出格式：json 或 text", "json")
   .action((type, options) => { notePublishCommand(type, options); });
