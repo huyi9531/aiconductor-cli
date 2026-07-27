@@ -300,6 +300,8 @@ npm install
 node bin/aiconductor-cli.js --help    # 本地运行
 ```
 
+贡献前请阅读 [AGENTS.md](./AGENTS.md) 了解项目结构、编码风格与提交流程。
+
 ## License
 
 MIT
