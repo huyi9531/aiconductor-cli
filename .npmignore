@@ -4,4 +4,5 @@ node_modules/
 .DS_Store
 .vscode/
 .idea/
+.codex/
 API文档.md

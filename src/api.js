@@ -5,6 +5,8 @@ const path = require("path");
 const API_HOST = "plugin.aiconductor.fun";
 const API_PATH = "/api/html_publish";
 const MD_TO_HTML_API_PATH = "/api/md_to_html";
+const PUBLISHED_WEBPAGES_API_PATH = "/api/published_webpages";
+const DELETE_PUBLISHED_WEBPAGE_API_PATH = "/api/delete_published_webpage";
 const SEARCH_API_PATH = "/api/aic_web_search";
 const DOUYIN_VIDEO_INFO_PATH = "/api/douyin_video_info";
 const DOUYIN_VIDEO_COMMENTS_PATH = "/api/douyin_video_comments";
@@ -122,6 +124,22 @@ function httpPost(host, requestPath, body, headers = {}) {
     req.write(data);
     req.end();
   });
+}
+
+/**
+ * 校验正整数参数
+ * @param {*} value
+ * @param {string} name
+ * @param {number} [max]
+ * @returns {number}
+ */
+function validatePositiveInt(value, name, max) {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || (max !== undefined && n > max)) {
+    const range = max === undefined ? "大于等于 1" : `1 到 ${max}`;
+    throw Object.assign(new Error(`${name} 须为 ${range} 的整数，收到: ${value}`), { type: "validation_error" });
+  }
+  return n;
 }
 
 function contentTypeForFilename(filename) {
@@ -305,6 +323,42 @@ async function publishMdToHtml(apiKey, mdText, filename, addCopyButton = false) 
 }
 
 /**
+ * 查询当前用户已发布的网页列表
+ * @param {string} apiKey
+ * @param {{page?: number|string, pageSize?: number|string}} [params]
+ * @returns {Promise<{success: boolean, webpages: Array, total: number, page: number, page_size: number}>}
+ */
+async function getPublishedWebpages(apiKey, params = {}) {
+  const page = validatePositiveInt(params.page === undefined ? 1 : params.page, "page");
+  const pageSize = validatePositiveInt(params.pageSize === undefined ? 20 : params.pageSize, "page_size", 100);
+  const resp = await httpPost(API_HOST, PUBLISHED_WEBPAGES_API_PATH, {
+    page,
+    page_size: pageSize,
+  }, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+
+  return stripBilling(resp);
+}
+
+/**
+ * 删除当前用户指定的已发布网页
+ * @param {string} apiKey
+ * @param {number|string} webpageId
+ * @returns {Promise<{success: boolean, message: string, webpage_id: number|null}>}
+ */
+async function deletePublishedWebpage(apiKey, webpageId) {
+  const id = validatePositiveInt(webpageId, "webpage_id");
+  const resp = await httpPost(API_HOST, DELETE_PUBLISHED_WEBPAGE_API_PATH, {
+    webpage_id: id,
+  }, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+
+  return stripBilling(resp);
+}
+
+/**
  * 获取抖音作品详情
  * @param {string} apiKey
  * @param {string} shareUrl
@@ -438,6 +492,8 @@ module.exports = {
   resolveApiKey,
   publishHtml,
   publishMdToHtml,
+  getPublishedWebpages,
+  deletePublishedWebpage,
   webSearch,
   douyinVideoInfo,
   douyinVideoComments,

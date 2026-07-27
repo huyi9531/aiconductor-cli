@@ -2,7 +2,11 @@
 
 const { Command } = require("commander");
 const { publishCommand } = require("../src/commands/html_publish");
-const { publishCommand: webpagePublishCommand } = require("../src/commands/md_publish");
+const {
+  publishCommand: webpagePublishCommand,
+  listCommand: webpageListCommand,
+  deleteCommand: webpageDeleteCommand,
+} = require("../src/commands/md_publish");
 const { searchCommand } = require("../src/commands/web_search");
 const {
   videoInfoCommand,
@@ -58,6 +62,27 @@ webpageCmd
   .option("-f, --format <format>", "输出格式：json 或 text", "json")
   .action((input, options) => {
     webpagePublishCommand(input, options);
+  });
+
+webpageCmd
+  .command("list")
+  .description("查询当前用户已发布的网页")
+  .option("-k, --api-key <key>", "AIConductor API Key（也可通过 AICONDUCTOR_API_KEY 环境变量或 .env 文件提供）")
+  .option("--page <page>", "页码，最小为 1", "1")
+  .option("--page-size <size>", "每页条数，范围为 1 到 100", "20")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((options) => {
+    webpageListCommand(options);
+  });
+
+webpageCmd
+  .command("delete")
+  .description("删除当前用户指定的已发布网页")
+  .argument("<webpage_id>", "网页记录 ID，可通过 webpage list 获取")
+  .option("-k, --api-key <key>", "AIConductor API Key（也可通过 AICONDUCTOR_API_KEY 环境变量或 .env 文件提供）")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((webpageId, options) => {
+    webpageDeleteCommand(webpageId, options);
   });
 
 // search 子命令组

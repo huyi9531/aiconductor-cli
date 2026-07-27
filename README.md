@@ -77,6 +77,36 @@ aiconductor-cli webpage publish index.html -t my-page
 aiconductor-cli webpage publish "# Hello\n\nThis is **markdown**" -t hello
 ```
 
+### 管理已发布网页
+
+查询当前 API Key 所属用户的网页发布记录：
+
+```bash
+aiconductor-cli webpage list [选项]
+```
+
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| `--page` | 页码，最小为 1 | 1 |
+| `--page-size` | 每页条数，范围为 1 到 100 | 20 |
+| `-k, --api-key` | API Key（可选） | 环境变量 |
+| `-f, --format` | 输出格式：`json` 或 `text` | json |
+
+删除指定的已发布网页及其公开 HTML 对象：
+
+```bash
+aiconductor-cli webpage delete <webpage_id> [选项]
+```
+
+示例：
+```bash
+# 查看第 2 页，每页 50 条
+aiconductor-cli webpage list --page 2 --page-size 50 -f text
+
+# 删除 ID 为 123 的网页
+aiconductor-cli webpage delete 123
+```
+
 ### 网页搜索
 
 ```bash
