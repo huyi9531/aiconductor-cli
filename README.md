@@ -115,18 +115,23 @@ aiconductor-cli search web <关键词> [选项]
 
 | 选项 | 说明 | 默认值 |
 |------|------|--------|
-| `-n, --count` | 返回条数（最多50） | 5 |
+| `-n, --count` | 返回条数（最多50） | 10 |
 | `--time-range` | 时间范围：预设 `OneDay`/`OneWeek`/`OneMonth`/`OneYear`，或自定义 `YYYY-MM-DD..YYYY-MM-DD` | 无 |
-| `--no-summary` | 不返回内容摘要 | 默认返回 |
-| `--content-format` | 内容格式：`Text` 或 `Markdown` | Text |
-| `--auth-level` | 权威过滤：0=不过滤，1=优先权威来源 | 0 |
+| `--need-content` | 仅返回包含正文的结果 | 关闭 |
+| `--need-url` | 仅返回带原文链接的结果 | 关闭 |
+| `--sites` | 限定搜索站点，完整域名以 `\|` 分隔，最多20个 | 无 |
+| `--block-hosts` | 屏蔽站点，完整域名以 `\|` 分隔，最多5个 | 无 |
+| `--auth-info-level` | 权威度过滤：0=不限制，1=仅非常权威内容 | 0 |
+| `--auth-level` | `--auth-info-level` 的兼容别名 | 无 |
+| `--content-format` | 正文格式：`text` 或 `markdown` | text |
+| `--industry` | 行业搜索：`finance`、`game` 或 `gov` | 无 |
 | `--query-rewrite` | 开启 Query 改写 | 关闭 |
 | `-f, --format` | 输出格式：`json` 或 `text` | json |
 
 示例：
 ```bash
-aiconductor-cli search web "北京今日天气" -n 3 --auth-level 1
-aiconductor-cli search web "AI 最新进展" --time-range OneWeek --content-format Markdown
+aiconductor-cli search web "北京今日天气" -n 3 --auth-info-level 1 --need-url
+aiconductor-cli search web "AI 最新进展" --time-range OneWeek --content-format markdown --need-content
 aiconductor-cli search web "技术文章" --time-range 2025-01-01..2025-06-30 -n 10
 ```
 
@@ -139,12 +144,17 @@ aiconductor-cli search image <关键词> [选项]
 | 选项 | 说明 | 默认值 |
 |------|------|--------|
 | `-n, --count` | 返回条数（最多5） | 5 |
-| `--time-range` | 时间范围：预设或自定义日期范围 | 无 |
+| `--image-width-min` | 图片最小宽度 | 无 |
+| `--image-width-max` | 图片最大宽度 | 无 |
+| `--image-height-min` | 图片最小高度 | 无 |
+| `--image-height-max` | 图片最大高度 | 无 |
+| `--image-shapes` | 图片形状，以 `\|` 分隔：`横长方形`、`竖长方形`、`方形` | 无 |
+| `--query-rewrite` | 开启 Query 改写 | 关闭 |
 | `-f, --format` | 输出格式：`json` 或 `text` | json |
 
 示例：
 ```bash
-aiconductor-cli search image "长城风景" -n 3 -f text
+aiconductor-cli search image "长城风景" -n 3 --image-width-min 1200 --image-shapes "横长方形|方形" -f text
 ```
 
 ### 抖音数据工具箱
@@ -309,7 +319,7 @@ aiconductor-cli xhs note-publish video \
 |------|------|
 | HTML 发布 | 0.01 元/次 |
 | Markdown/HTML 网页发布 | 0.01 元/次 |
-| 网页/图片搜索 | 0.03 元/次 |
+| 豆包网页/图片搜索 | 0.02 元/次 |
 | 抖音作品详情 | 0.01 元/次 |
 | 抖音作品评论 | 0.01 元/次 |
 | 抖音用户视频列表 | 0.03 元/页 |

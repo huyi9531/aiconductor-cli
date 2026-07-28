@@ -1,5 +1,5 @@
 const { webSearch } = require("../api");
-const { outputResult, outputError, resolveKeyOrExit, handleApiError, safeParseInt } = require("../lib/cli-utils");
+const { outputResult, outputError, resolveKeyOrExit, handleApiError } = require("../lib/cli-utils");
 
 /** text 模式的自定义格式化 */
 function formatSearchText(data) {
@@ -49,19 +49,34 @@ async function searchCommand(query, searchType, options = {}) {
   const params = { query, searchType };
 
   if (options.count !== undefined) {
-    params.count = safeParseInt(options.count, undefined);
+    params.count = options.count;
   }
   if (options.timeRange) {
     params.timeRange = options.timeRange;
   }
   if (searchType === "web") {
-    params.needSummary = options.summary !== false;
-  }
-  if (options.contentFormat) {
-    params.contentFormats = options.contentFormat;
-  }
-  if (options.authLevel !== undefined) {
-    params.authLevel = safeParseInt(options.authLevel, undefined);
+    if (options.needContent) params.needContent = true;
+    if (options.needUrl) params.needUrl = true;
+    if (options.sites) params.sites = options.sites;
+    if (options.blockHosts) params.blockHosts = options.blockHosts;
+    const authInfoLevel = options.authInfoLevel ?? options.authLevel;
+    if (authInfoLevel !== undefined) {
+      params.authInfoLevel = authInfoLevel;
+    }
+    if (options.contentFormat) params.contentFormats = options.contentFormat;
+    if (options.industry) params.industry = options.industry;
+  } else {
+    for (const [optionName, paramName] of [
+      ["imageWidthMin", "imageWidthMin"],
+      ["imageWidthMax", "imageWidthMax"],
+      ["imageHeightMin", "imageHeightMin"],
+      ["imageHeightMax", "imageHeightMax"],
+    ]) {
+      if (options[optionName] !== undefined) {
+        params[paramName] = options[optionName];
+      }
+    }
+    if (options.imageShapes) params.imageShapes = options.imageShapes;
   }
   if (options.queryRewrite) {
     params.queryRewrite = true;

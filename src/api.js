@@ -7,7 +7,7 @@ const API_PATH = "/api/html_publish";
 const MD_TO_HTML_API_PATH = "/api/md_to_html";
 const PUBLISHED_WEBPAGES_API_PATH = "/api/published_webpages";
 const DELETE_PUBLISHED_WEBPAGE_API_PATH = "/api/delete_published_webpage";
-const SEARCH_API_PATH = "/api/aic_web_search";
+const SEARCH_API_PATH = "/api/doubao_search";
 const DOUYIN_VIDEO_INFO_PATH = "/api/douyin_video_info";
 const DOUYIN_VIDEO_COMMENTS_PATH = "/api/douyin_video_comments";
 const DOUYIN_USER_VIDEOS_PATH = "/api/douyin_user_videos";
@@ -273,26 +273,62 @@ async function publishHtml(apiKey, htmlCode, title) {
 }
 
 /**
- * 网页/图片搜索
+ * 豆包网页/图片搜索
  * @param {string} apiKey
- * @param {{ query: string, searchType: string, count?: number, timeRange?: string, needSummary?: boolean, contentFormats?: string, authLevel?: number, queryRewrite?: boolean }} params
+ * @param {{ query: string, searchType: "web"|"image", count?: number, queryRewrite?: boolean, needContent?: boolean, needUrl?: boolean, sites?: string, blockHosts?: string, authInfoLevel?: number, timeRange?: string, contentFormats?: string, industry?: string, imageWidthMin?: number, imageWidthMax?: number, imageHeightMin?: number, imageHeightMax?: number, imageShapes?: string[]|string }} params
  * @returns {Promise<object>}
  */
 async function webSearch(apiKey, params) {
-  // 输入校验
-  validateInt(params.count, "count");
-  validateInt(params.authLevel, "authLevel");
+  const maxCount = params.searchType === "web" ? 50 : 5;
+  if (params.searchType !== "web" && params.searchType !== "image") {
+    throw Object.assign(new Error("searchType 只能是 web 或 image"), { type: "validation_error" });
+  }
+  const count = params.count === undefined ? undefined : validatePositiveInt(params.count, "count", maxCount);
+  validateInt(params.authInfoLevel, "authInfoLevel");
+  validateInt(params.imageWidthMin, "imageWidthMin");
+  validateInt(params.imageWidthMax, "imageWidthMax");
+  validateInt(params.imageHeightMin, "imageHeightMin");
+  validateInt(params.imageHeightMax, "imageHeightMax");
+
+  const authInfoLevel = params.authInfoLevel === undefined ? undefined : Number(params.authInfoLevel);
+  const imageWidthMin = params.imageWidthMin === undefined ? undefined : Number(params.imageWidthMin);
+  const imageWidthMax = params.imageWidthMax === undefined ? undefined : Number(params.imageWidthMax);
+  const imageHeightMin = params.imageHeightMin === undefined ? undefined : Number(params.imageHeightMin);
+  const imageHeightMax = params.imageHeightMax === undefined ? undefined : Number(params.imageHeightMax);
+
+  if (authInfoLevel !== undefined && ![0, 1].includes(authInfoLevel)) {
+    throw Object.assign(new Error("authInfoLevel 只能是 0 或 1"), { type: "validation_error" });
+  }
+  if (imageWidthMin !== undefined && imageWidthMax !== undefined && imageWidthMin > imageWidthMax) {
+    throw Object.assign(new Error("imageWidthMin 不能大于 imageWidthMax"), { type: "validation_error" });
+  }
+  if (imageHeightMin !== undefined && imageHeightMax !== undefined && imageHeightMin > imageHeightMax) {
+    throw Object.assign(new Error("imageHeightMin 不能大于 imageHeightMax"), { type: "validation_error" });
+  }
 
   const reqBody = {
     query: params.query,
     search_type: params.searchType,
   };
-  if (params.count !== undefined) reqBody.count = params.count;
-  if (params.timeRange) reqBody.time_range = params.timeRange;
-  if (params.needSummary !== undefined) reqBody.need_summary = params.needSummary;
-  if (params.contentFormats) reqBody.content_formats = params.contentFormats;
-  if (params.authLevel !== undefined) reqBody.auth_level = params.authLevel;
+  if (count !== undefined) reqBody.count = count;
   if (params.queryRewrite !== undefined) reqBody.query_rewrite = params.queryRewrite;
+
+  if (params.searchType === "web") {
+    if (params.needContent !== undefined) reqBody.need_content = params.needContent;
+    if (params.needUrl !== undefined) reqBody.need_url = params.needUrl;
+    if (params.sites) reqBody.sites = params.sites;
+    if (params.blockHosts) reqBody.block_hosts = params.blockHosts;
+    if (authInfoLevel !== undefined) reqBody.auth_info_level = authInfoLevel;
+    if (params.timeRange) reqBody.time_range = params.timeRange;
+    if (params.contentFormats) reqBody.content_formats = params.contentFormats;
+    if (params.industry) reqBody.industry = params.industry;
+  } else {
+    if (imageWidthMin !== undefined) reqBody.image_width_min = imageWidthMin;
+    if (imageWidthMax !== undefined) reqBody.image_width_max = imageWidthMax;
+    if (imageHeightMin !== undefined) reqBody.image_height_min = imageHeightMin;
+    if (imageHeightMax !== undefined) reqBody.image_height_max = imageHeightMax;
+    if (params.imageShapes !== undefined) reqBody.image_shapes = params.imageShapes;
+  }
 
   const resp = await httpPost(API_HOST, SEARCH_API_PATH, reqBody, {
     Authorization: `Bearer ${apiKey}`,
