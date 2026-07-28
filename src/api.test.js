@@ -4,8 +4,9 @@ const https = require("node:https");
 const test = require("node:test");
 
 const { webSearch } = require("./api");
+const { formatSearchText } = require("./commands/web_search");
 
-function captureRequest(callback) {
+function captureRequest(callback, responseBody = { success: true, billing: {} }) {
   const originalRequest = https.request;
   let captured;
   https.request = (options, responseCallback) => {
@@ -17,7 +18,7 @@ function captureRequest(callback) {
       const response = new EventEmitter();
       response.statusCode = 200;
       responseCallback(response);
-      response.emit("data", Buffer.from(JSON.stringify({ success: true, billing: {} })));
+      response.emit("data", Buffer.from(JSON.stringify(responseBody)));
       response.emit("end");
     };
     return request;
@@ -94,5 +95,63 @@ test("webSearch maps current image filters and rejects invalid count", async () 
   await assert.rejects(
     webSearch("test-key", { query: "长城", searchType: "image", imageWidthMin: "invalid" }),
     { type: "validation_error" }
+  );
+});
+
+test("formatSearchText renders top-level web search results", () => {
+  const text = formatSearchText({
+    data: {
+      Result: {
+        ResultCount: 1,
+        TimeCost: 42,
+        WebResults: [{
+          SortId: 1,
+          Title: "北京游玩攻略",
+          SiteName: "示例站点",
+          Url: "https://example.com/guide",
+          Snippet: "推荐路线",
+          PublishTime: "2026-07-28",
+        }],
+      },
+    },
+  });
+
+  assert.match(text, /结果数: 1/);
+  assert.match(text, /耗时: 42ms/);
+  assert.match(text, /\[1\] 北京游玩攻略/);
+  assert.match(text, /URL: https:\/\/example\.com\/guide/);
+});
+
+test("formatSearchText renders top-level image search results", () => {
+  const text = formatSearchText({
+    data: {
+      Result: {
+        ResultCount: 1,
+        TimeCost: 18,
+        ImageResults: [{
+          SortId: 1,
+          Title: "长城风景",
+          SiteName: "示例图片站",
+          Image: { Url: "https://example.com/great-wall.jpg", Width: 1920, Height: 1080 },
+          Url: "https://example.com/great-wall",
+        }],
+      },
+    },
+  });
+
+  assert.match(text, /结果数: 1/);
+  assert.match(text, /耗时: 18ms/);
+  assert.match(text, /\[1\] 长城风景/);
+  assert.match(text, /尺寸: 1920x1080/);
+  assert.match(text, /图片: https:\/\/example\.com\/great-wall\.jpg/);
+});
+
+test("webSearch raises nested API failures", async () => {
+  await assert.rejects(
+    captureRequest(
+      () => webSearch("test-key", { query: "长城", searchType: "image", count: 1 }),
+      { success: true, data: { success: false, message: "image 搜索的 count 必须为 1~5" } }
+    ),
+    { type: "api_error", message: "image 搜索的 count 必须为 1~5" }
   );
 });

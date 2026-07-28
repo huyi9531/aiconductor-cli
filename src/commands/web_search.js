@@ -2,8 +2,8 @@ const { webSearch } = require("../api");
 const { outputResult, outputError, resolveKeyOrExit, handleApiError } = require("../lib/cli-utils");
 
 /** text 模式的自定义格式化 */
-function formatSearchText(data) {
-  const inner = data.data || {};
+function formatSearchText(data = {}) {
+  const inner = data.data?.Result || {};
   let out = "✓ 搜索成功\n";
   out += `  结果数: ${inner.ResultCount}\n`;
   out += `  耗时: ${inner.TimeCost}ms\n\n`;
@@ -96,4 +96,4 @@ async function searchCommand(query, searchType, options = {}) {
   }
 }
 
-module.exports = { searchCommand };
+module.exports = { searchCommand, formatSearchText };

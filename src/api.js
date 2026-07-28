@@ -334,7 +334,14 @@ async function webSearch(apiKey, params) {
     Authorization: `Bearer ${apiKey}`,
   });
 
-  return stripBilling(resp);
+  const result = stripBilling(resp);
+  if (result?.success === false || result?.data?.success === false) {
+    throw Object.assign(new Error(result?.data?.message || result?.message || "搜索接口返回失败"), {
+      type: "api_error",
+    });
+  }
+
+  return result;
 }
 
 /**
