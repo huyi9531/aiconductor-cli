@@ -1,4 +1,0 @@
-interface:
-  display_name: "Doubao Search"
-  short_description: "Search the web and images with Doubao filters"
-  default_prompt: "Use $doubao-search to search the web or images with the latest Doubao filters."
