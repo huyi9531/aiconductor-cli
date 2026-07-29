@@ -157,6 +157,32 @@ aiconductor-cli search image <关键词> [选项]
 aiconductor-cli search image "长城风景" -n 3 --image-width-min 1200 --image-shapes "横长方形|方形" -f text
 ```
 
+### 热点选题简报
+
+聚合多个平台的热点条目，为内容选题提供带来源链接的原料。默认查询知乎、微博、抖音和 AIHOT，每个来源返回 30 条。
+
+```bash
+aiconductor-cli content briefing [选项]
+```
+
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| `--sources <ids>` | 来源 ID，逗号分隔；例如 `zhihu,weibo,aihot` | `zhihu,weibo,douyin,aihot` |
+| `--limit <n>` | 每个来源返回条数，范围 1 到 30 | 30 |
+| `-k, --api-key <key>` | API Key（可选） | 环境变量 |
+| `-f, --format <format>` | 输出格式：`json` 或 `text` | json |
+
+示例：
+```bash
+# 默认综合热点简报
+aiconductor-cli content briefing -f text
+
+# 只查看技术与产品来源
+aiconductor-cli content briefing --sources aihot,hackernews,producthunt,juejin --limit 15 -f text
+```
+
+默认 JSON 输出会保留成功来源、缓存状态和失败来源，便于后续选题处理。部分来源失败时仍返回其他成功来源；仅成功返回数据的来源会计费。
+
 ### 抖音数据工具箱
 
 ```bash

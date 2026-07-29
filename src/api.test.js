@@ -3,7 +3,8 @@ const { EventEmitter } = require("node:events");
 const https = require("node:https");
 const test = require("node:test");
 
-const { webSearch } = require("./api");
+const { hotList, webSearch } = require("./api");
+const { formatHotListText, parseSourceIds, DEFAULT_HOT_LIST_SOURCES } = require("./commands/content");
 const { formatSearchText } = require("./commands/web_search");
 
 function captureRequest(callback, responseBody = { success: true, billing: {} }) {
@@ -153,5 +154,61 @@ test("webSearch raises nested API failures", async () => {
       { success: true, data: { success: false, message: "image 搜索的 count 必须为 1~5" } }
     ),
     { type: "api_error", message: "image 搜索的 count 必须为 1~5" }
+  );
+});
+
+test("hotList sends deduplicated sources with current defaults", async () => {
+  const request = await captureRequest(() => hotList("test-key", {
+    sourceIds: ["zhihu", "weibo", "zhihu", "aihot"],
+  }));
+
+  assert.equal(request.options.path, "/api/hot_list_mixed");
+  assert.equal(request.options.headers.Authorization, "Bearer test-key");
+  assert.deepEqual(request.body, {
+    source_ids: ["zhihu", "weibo", "aihot"],
+    latest: true,
+    limit: 30,
+  });
+  assert.deepEqual(parseSourceIds(), DEFAULT_HOT_LIST_SOURCES);
+  assert.deepEqual(parseSourceIds("zhihu, weibo,zhihu"), ["zhihu", "weibo"]);
+});
+
+test("hotList validates source IDs and limits", async () => {
+  await assert.rejects(hotList("test-key", { sourceIds: [] }), { type: "validation_error" });
+  await assert.rejects(
+    hotList("test-key", { sourceIds: Array.from({ length: 53 }, (_, index) => `source-${index}`) }),
+    { type: "validation_error" }
+  );
+  await assert.rejects(hotList("test-key", { sourceIds: ["zhihu"], limit: 0 }), { type: "validation_error" });
+  await assert.rejects(hotList("test-key", { sourceIds: ["zhihu"], limit: 31 }), { type: "validation_error" });
+});
+
+test("formatHotListText keeps successful sources and reports failures", () => {
+  const text = formatHotListText({
+    data: {
+      sources: [{
+        source_id: "zhihu",
+        status: "cache",
+        updated_time: 0,
+        items: [{ title: "AI 应用趋势", url: "https://example.com/topic", pub_date: "今天" }],
+      }],
+      failed_sources: [{ source_id: "weibo", message: "上游暂不可用" }],
+    },
+  });
+
+  assert.match(text, /【zhihu】缓存/);
+  assert.match(text, /AI 应用趋势/);
+  assert.match(text, /URL: https:\/\/example\.com\/topic/);
+  assert.match(text, /失败来源:/);
+  assert.match(text, /weibo: 上游暂不可用/);
+});
+
+test("hotList raises API failures", async () => {
+  await assert.rejects(
+    captureRequest(
+      () => hotList("test-key", { sourceIds: ["zhihu"] }),
+      { success: false, message: "没有可用热榜来源" }
+    ),
+    { type: "api_error", message: "没有可用热榜来源" }
   );
 });

@@ -8,6 +8,7 @@ const {
   deleteCommand: webpageDeleteCommand,
 } = require("../src/commands/md_publish");
 const { searchCommand } = require("../src/commands/web_search");
+const { briefingCommand } = require("../src/commands/content");
 const {
   videoInfoCommand,
   videoCommentsCommand,
@@ -126,6 +127,22 @@ searchCmd
   .option("-f, --format <format>", "输出格式：json 或 text", "json")
   .action((query, options) => {
     searchCommand(query, "image", options);
+  });
+
+// content 子命令组
+const contentCmd = program
+  .command("content")
+  .description("内容选题与素材工具");
+
+contentCmd
+  .command("briefing")
+  .description("聚合多平台热点，生成选题原料")
+  .option("-k, --api-key <key>", "AIConductor API Key（也可通过 AICONDUCTOR_API_KEY 环境变量或 .env 文件提供）")
+  .option("--sources <ids>", "来源 ID，逗号分隔；默认 zhihu,weibo,douyin,aihot")
+  .option("--limit <n>", "每个来源返回条数，范围 1 到 30", "30")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((options) => {
+    briefingCommand(options);
   });
 
 // 未知命令处理

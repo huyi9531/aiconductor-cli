@@ -8,6 +8,7 @@ const MD_TO_HTML_API_PATH = "/api/md_to_html";
 const PUBLISHED_WEBPAGES_API_PATH = "/api/published_webpages";
 const DELETE_PUBLISHED_WEBPAGE_API_PATH = "/api/delete_published_webpage";
 const SEARCH_API_PATH = "/api/doubao_search";
+const HOT_LIST_API_PATH = "/api/hot_list_mixed";
 const DOUYIN_VIDEO_INFO_PATH = "/api/douyin_video_info";
 const DOUYIN_VIDEO_COMMENTS_PATH = "/api/douyin_video_comments";
 const DOUYIN_USER_VIDEOS_PATH = "/api/douyin_user_videos";
@@ -345,6 +346,39 @@ async function webSearch(apiKey, params) {
 }
 
 /**
+ * 聚合多个平台的热榜条目。
+ * @param {string} apiKey
+ * @param {{ sourceIds: string[]|string, limit?: number|string }} params
+ * @returns {Promise<object>}
+ */
+async function hotList(apiKey, params) {
+  const inputSources = Array.isArray(params.sourceIds)
+    ? params.sourceIds
+    : String(params.sourceIds || "").split(",");
+  const sourceIds = [...new Set(inputSources.map((source) => String(source).trim()).filter(Boolean))];
+  if (sourceIds.length === 0) {
+    throw Object.assign(new Error("sourceIds 至少需要提供一个来源"), { type: "validation_error" });
+  }
+  if (sourceIds.length > 52) {
+    throw Object.assign(new Error("sourceIds 最多支持 52 个来源"), { type: "validation_error" });
+  }
+
+  const limit = validatePositiveInt(params.limit === undefined ? 30 : params.limit, "limit", 30);
+  const resp = await httpPost(API_HOST, HOT_LIST_API_PATH, {
+    source_ids: sourceIds,
+    latest: true,
+    limit,
+  }, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+  const result = stripBilling(resp);
+  if (result?.success === false) {
+    throw Object.assign(new Error(result.message || "热榜接口返回失败"), { type: "api_error" });
+  }
+  return result;
+}
+
+/**
  * Markdown 转 HTML 并发布
  * @param {string} apiKey
  * @param {string} mdText
@@ -538,6 +572,7 @@ module.exports = {
   getPublishedWebpages,
   deletePublishedWebpage,
   webSearch,
+  hotList,
   douyinVideoInfo,
   douyinVideoComments,
   douyinUserVideos,
