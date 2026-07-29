@@ -1,3 +1,4 @@
+const http = require("http");
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
@@ -76,14 +77,15 @@ function validateInt(value, name) {
  * @param {string} host
  * @param {string} path
  * @param {object} body
+ * @param {typeof http|typeof https} [transport]
  * @returns {Promise<object>}
  */
-function httpPost(host, requestPath, body, headers = {}) {
+function httpPost(host, requestPath, body, headers = {}, transport = https) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
     const options = {
       hostname: host,
-      port: 443,
+      port: transport === http ? 80 : 443,
       path: requestPath,
       method: "POST",
       headers: {
@@ -93,7 +95,7 @@ function httpPost(host, requestPath, body, headers = {}) {
       },
     };
 
-    const req = https.request(options, (res) => {
+    const req = transport.request(options, (res) => {
       let chunks = [];
       res.on("data", (chunk) => chunks.push(chunk));
       res.on("end", () => {
@@ -364,13 +366,14 @@ async function hotList(apiKey, params) {
   }
 
   const limit = validatePositiveInt(params.limit === undefined ? 30 : params.limit, "limit", 30);
+  // The hot-list service is currently served over HTTP; see api_docs/hot_list_mixed.md.
   const resp = await httpPost(API_HOST, HOT_LIST_API_PATH, {
     source_ids: sourceIds,
     latest: true,
     limit,
   }, {
     Authorization: `Bearer ${apiKey}`,
-  });
+  }, http);
   const result = stripBilling(resp);
   if (result?.success === false) {
     throw Object.assign(new Error(result.message || "热榜接口返回失败"), { type: "api_error" });

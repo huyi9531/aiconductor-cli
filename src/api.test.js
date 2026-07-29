@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
+const http = require("node:http");
 const https = require("node:https");
 const test = require("node:test");
 
@@ -7,10 +8,10 @@ const { hotList, webSearch } = require("./api");
 const { formatHotListText, parseSourceIds, DEFAULT_HOT_LIST_SOURCES } = require("./commands/content");
 const { formatSearchText } = require("./commands/web_search");
 
-function captureRequest(callback, responseBody = { success: true, billing: {} }) {
-  const originalRequest = https.request;
+function captureRequest(callback, responseBody = { success: true, billing: {} }, transport = https) {
+  const originalRequest = transport.request;
   let captured;
-  https.request = (options, responseCallback) => {
+  transport.request = (options, responseCallback) => {
     const request = new EventEmitter();
     const chunks = [];
     request.write = (chunk) => chunks.push(Buffer.from(chunk));
@@ -26,7 +27,7 @@ function captureRequest(callback, responseBody = { success: true, billing: {} })
   };
 
   return callback().then(() => captured).finally(() => {
-    https.request = originalRequest;
+    transport.request = originalRequest;
   });
 }
 
@@ -158,11 +159,14 @@ test("webSearch raises nested API failures", async () => {
 });
 
 test("hotList sends deduplicated sources with current defaults", async () => {
-  const request = await captureRequest(() => hotList("test-key", {
-    sourceIds: ["zhihu", "weibo", "zhihu", "aihot"],
-  }));
+  const request = await captureRequest(
+    () => hotList("test-key", { sourceIds: ["zhihu", "weibo", "zhihu", "aihot"] }),
+    undefined,
+    http
+  );
 
   assert.equal(request.options.path, "/api/hot_list_mixed");
+  assert.equal(request.options.port, 80);
   assert.equal(request.options.headers.Authorization, "Bearer test-key");
   assert.deepEqual(request.body, {
     source_ids: ["zhihu", "weibo", "aihot"],
@@ -207,7 +211,8 @@ test("hotList raises API failures", async () => {
   await assert.rejects(
     captureRequest(
       () => hotList("test-key", { sourceIds: ["zhihu"] }),
-      { success: false, message: "没有可用热榜来源" }
+      { success: false, message: "没有可用热榜来源" },
+      http
     ),
     { type: "api_error", message: "没有可用热榜来源" }
   );
