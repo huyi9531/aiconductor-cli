@@ -1,4 +1,4 @@
-const { hotList } = require("../api");
+const { hotList, xhsHotList } = require("../api");
 const { outputResult, outputError, resolveKeyOrExit, handleApiError } = require("../lib/cli-utils");
 
 const DEFAULT_HOT_LIST_SOURCES = ["zhihu", "weibo", "douyin", "aihot"];
@@ -20,9 +20,69 @@ function parseSourceIds(value) {
   return sourceIds;
 }
 
+/**
+ * 解析每个热榜来源的返回条数。
+ * @param {string|number|undefined} value
+ * @returns {number}
+ */
+function parseLimit(value) {
+  const limit = Number(value === undefined ? 30 : value);
+  if (!Number.isInteger(limit) || limit < 1 || limit > 30) {
+    throw Object.assign(new Error(`--limit 须为 1 到 30 的整数，收到: ${value}`), {
+      type: "validation_error",
+    });
+  }
+  return limit;
+}
+
 function formatTimestamp(value) {
   if (typeof value !== "number" || !Number.isFinite(value)) return value || "";
   return new Date(value).toISOString();
+}
+
+function errorMessage(reason) {
+  if (reason?.body?.message) return reason.body.message;
+  return reason?.message || String(reason || "未知错误");
+}
+
+/**
+ * 将热榜和小红书热榜的并行结果组合为兼容既有字段的简报响应。
+ * @param {PromiseSettledResult<object>} hotListResult
+ * @param {PromiseSettledResult<object>} xhsHotListResult
+ * @returns {object}
+ */
+function buildBriefingResult(hotListResult, xhsHotListResult) {
+  const hotListSucceeded = hotListResult.status === "fulfilled";
+  const xhsHotListSucceeded = xhsHotListResult.status === "fulfilled";
+
+  if (!hotListSucceeded && !xhsHotListSucceeded) {
+    throw Object.assign(
+      new Error(`热点与小红书热榜均获取失败: ${errorMessage(hotListResult.reason)}; ${errorMessage(xhsHotListResult.reason)}`),
+      { type: "api_error" }
+    );
+  }
+
+  const failedServices = [];
+  if (!hotListSucceeded) {
+    failedServices.push({ service: "hot_list", message: errorMessage(hotListResult.reason) });
+  }
+  if (!xhsHotListSucceeded) {
+    failedServices.push({ service: "xhs_hot_list", message: errorMessage(xhsHotListResult.reason) });
+  }
+
+  const hotListData = hotListSucceeded
+    ? hotListResult.value.data || {}
+    : { sources: [], failed_sources: [] };
+  const xhsHotListData = xhsHotListSucceeded ? xhsHotListResult.value.data || {} : null;
+  return {
+    success: true,
+    message: failedServices.length ? "热点简报已生成，部分服务不可用" : "热点简报已生成",
+    data: {
+      ...hotListData,
+      xhs_hot_list: xhsHotListData,
+      failed_services: failedServices,
+    },
+  };
 }
 
 /**
@@ -58,6 +118,28 @@ function formatHotListText(result = {}) {
     });
   }
 
+  const xhsHotList = data.xhs_hot_list;
+  if (xhsHotList) {
+    lines.push(`\n【小红书热榜】${xhsHotList.date || ""}`.trimEnd());
+    (xhsHotList.items || []).forEach((item) => {
+      const rank = item.rank === undefined ? "-" : item.rank;
+      const trend = item.trend ? ` ${item.trend}` : "";
+      lines.push(`[${rank}] ${item.title || "未命名话题"}${trend}`);
+      if (item.hot || item.hot_value !== undefined) {
+        lines.push(`  热度: ${item.hot || item.hot_value}`);
+      }
+      if (item.url) lines.push(`  URL: ${item.url}`);
+    });
+  }
+
+  const failedServices = data.failed_services || [];
+  if (failedServices.length) {
+    lines.push("\n服务失败:");
+    failedServices.forEach((service) => {
+      lines.push(`- ${service.service || "未知服务"}: ${service.message || "未知错误"}`);
+    });
+  }
+
   return lines.join("\n").trimEnd();
 }
 
@@ -71,10 +153,15 @@ async function briefingCommand(options = {}) {
   const apiKey = resolveKeyOrExit(options.apiKey, format);
 
   try {
-    const result = await hotList(apiKey, {
+    const hotListParams = {
       sourceIds: parseSourceIds(options.sources),
-      limit: options.limit === undefined ? 30 : options.limit,
-    });
+      limit: parseLimit(options.limit),
+    };
+    const [hotListResult, xhsHotListResult] = await Promise.allSettled([
+      hotList(apiKey, hotListParams),
+      xhsHotList(apiKey),
+    ]);
+    const result = buildBriefingResult(hotListResult, xhsHotListResult);
     outputResult(result, format, formatHotListText);
     process.exit(0);
   } catch (err) {
@@ -87,4 +174,11 @@ async function briefingCommand(options = {}) {
   }
 }
 
-module.exports = { briefingCommand, formatHotListText, parseSourceIds, DEFAULT_HOT_LIST_SOURCES };
+module.exports = {
+  briefingCommand,
+  buildBriefingResult,
+  formatHotListText,
+  parseLimit,
+  parseSourceIds,
+  DEFAULT_HOT_LIST_SOURCES,
+};

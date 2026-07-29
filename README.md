@@ -1,6 +1,6 @@
 # AIConductor CLI
 
-AIConductor 平台命令行工具箱，提供网页发布、搜索、抖音数据和小红书扫码发布功能。
+AIConductor 平台命令行工具箱，提供内容选题简报、网页发布、搜索、抖音数据和小红书工具。
 
 ## 安装
 
@@ -159,7 +159,7 @@ aiconductor-cli search image "长城风景" -n 3 --image-width-min 1200 --image-
 
 ### 热点选题简报
 
-聚合多个平台的热点条目，为内容选题提供带来源链接的原料。默认查询知乎、微博、抖音和 AIHOT，每个来源返回 30 条。
+聚合多个平台热点与小红书实时热榜，为内容选题提供带来源链接的原料。默认查询知乎、微博、抖音和 AIHOT，每个来源返回 30 条，并额外请求一次小红书热榜。
 
 ```bash
 aiconductor-cli content briefing [选项]
@@ -181,7 +181,14 @@ aiconductor-cli content briefing -f text
 aiconductor-cli content briefing --sources aihot,hackernews,producthunt,juejin --limit 15 -f text
 ```
 
-默认 JSON 输出会保留成功来源、缓存状态和失败来源，便于后续选题处理。部分来源失败时仍返回其他成功来源；仅成功返回数据的来源会计费。
+默认 JSON 输出保留以下字段，便于后续选题处理：
+
+- `data.data.sources`：成功的综合热榜来源，兼容旧版本。
+- `data.data.failed_sources`：综合热榜中失败的平台来源。
+- `data.data.xhs_hot_list`：小红书热榜结果，包含日期与话题条目；小红书热榜接口失败时为 `null`。
+- `data.data.failed_services`：综合热榜或小红书热榜接口级失败信息。
+
+任一服务成功时命令仍会返回可用数据；只有两个服务都失败时才退出失败。成功来源和成功的小红书热榜调用均按平台现有规则计费。
 
 ### 抖音数据工具箱
 
@@ -295,6 +302,19 @@ aiconductor-cli douyin link-to-text <视频URL> [选项]
 aiconductor-cli douyin link-to-text "https://www.douyin.com/video/xxxxx"
 ```
 
+### 小红书数据工具
+
+获取小红书实时热榜：
+
+```bash
+aiconductor-cli xhs hot-list [选项]
+```
+
+示例：
+```bash
+aiconductor-cli xhs hot-list -f text
+```
+
 ### 小红书扫码发布
 
 生成图文或视频笔记的 H5 发布页与二维码。素材支持公网 URL、本地文件、Base64/data URL，以及包含 Base64 内容的文本文件。
@@ -353,6 +373,7 @@ aiconductor-cli xhs note-publish video \
 | 抖音用户搜索 | 0.15 元/页 |
 | 抖音视频搜索 | 0.15 元/页 |
 | 抖音链接转文字 | 0.01 元/次 + 0.0003 元/秒 |
+| 小红书热榜 | 以平台服务配置为准 |
 | 小红书扫码发布 | 0.05 元/次 |
 
 > 搜索/调用失败不扣费，仅成功时计费。

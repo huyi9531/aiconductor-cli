@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { r2Upload, xhsNotePublish } = require("../api");
+const { r2Upload, xhsHotList, xhsNotePublish } = require("../api");
 const { outputResult, resolveKeyOrExit, handleApiError } = require("../lib/cli-utils");
 
 const MAX_IMAGE_SIZE = 32 * 1024 * 1024;
@@ -94,6 +94,46 @@ function textFormatter(resp) {
     if (d.media.cover) lines.push(`  封面:     ${d.media.cover}`);
   }
   return lines.join("\n");
+}
+
+/**
+ * text 格式输出：展示小红书实时热榜。
+ * @param {object} resp
+ * @returns {string}
+ */
+function hotListTextFormatter(resp = {}) {
+  const data = resp.data || {};
+  const lines = ["小红书热榜"];
+  if (data.date) lines.push(`日期: ${data.date}`);
+
+  (data.items || []).forEach((item) => {
+    const rank = item.rank === undefined ? "-" : item.rank;
+    const trend = item.trend ? ` ${item.trend}` : "";
+    lines.push(`\n[${rank}] ${item.title || "未命名话题"}${trend}`);
+    if (item.hot || item.hot_value !== undefined) lines.push(`  热度: ${item.hot || item.hot_value}`);
+    if (item.url) lines.push(`  URL: ${item.url}`);
+  });
+
+  return lines.join("\n");
+}
+
+/**
+ * 获取小红书实时热榜。
+ * @param {{ apiKey?: string, format?: "json"|"text" }} options
+ * @returns {Promise<void>}
+ */
+async function hotListCommand(options = {}) {
+  const format = options.format || "json";
+  const apiKey = resolveKeyOrExit(options.apiKey, format);
+
+  try {
+    const result = await xhsHotList(apiKey);
+    outputResult(result, format, hotListTextFormatter);
+    process.exit(0);
+  } catch (err) {
+    handleApiError(err, format);
+    process.exit(1);
+  }
 }
 
 async function notePublishCommand(type, options = {}) {
@@ -222,4 +262,4 @@ async function notePublishCommand(type, options = {}) {
   }
 }
 
-module.exports = { notePublishCommand };
+module.exports = { hotListCommand, hotListTextFormatter, notePublishCommand };

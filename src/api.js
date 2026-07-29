@@ -10,6 +10,7 @@ const PUBLISHED_WEBPAGES_API_PATH = "/api/published_webpages";
 const DELETE_PUBLISHED_WEBPAGE_API_PATH = "/api/delete_published_webpage";
 const SEARCH_API_PATH = "/api/doubao_search";
 const HOT_LIST_API_PATH = "/api/hot_list_mixed";
+const XHS_HOT_LIST_API_PATH = "/api/xhs_hot_list";
 const DOUYIN_VIDEO_INFO_PATH = "/api/douyin_video_info";
 const DOUYIN_VIDEO_COMMENTS_PATH = "/api/douyin_video_comments";
 const DOUYIN_USER_VIDEOS_PATH = "/api/douyin_user_videos";
@@ -382,6 +383,22 @@ async function hotList(apiKey, params) {
 }
 
 /**
+ * 获取小红书实时热榜。
+ * @param {string} apiKey
+ * @returns {Promise<object>}
+ */
+async function xhsHotList(apiKey) {
+  const resp = await httpPost(API_HOST, XHS_HOT_LIST_API_PATH, {}, {
+    Authorization: `Bearer ${apiKey}`,
+  }, http);
+  const result = stripBilling(resp);
+  if (result?.success === false) {
+    throw Object.assign(new Error(result.message || "小红书热榜接口返回失败"), { type: "api_error" });
+  }
+  return result;
+}
+
+/**
  * Markdown 转 HTML 并发布
  * @param {string} apiKey
  * @param {string} mdText
@@ -576,6 +593,7 @@ module.exports = {
   deletePublishedWebpage,
   webSearch,
   hotList,
+  xhsHotList,
   douyinVideoInfo,
   douyinVideoComments,
   douyinUserVideos,

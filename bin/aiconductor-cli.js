@@ -18,7 +18,7 @@ const {
   videoSearchCommand,
   linkToTextCommand,
 } = require("../src/commands/douyin");
-const { notePublishCommand } = require("../src/commands/xhs");
+const { hotListCommand: xhsHotListCommand, notePublishCommand } = require("../src/commands/xhs");
 
 const program = new Command();
 
@@ -136,7 +136,7 @@ const contentCmd = program
 
 contentCmd
   .command("briefing")
-  .description("聚合多平台热点，生成选题原料")
+  .description("聚合多平台热点与小红书热榜，生成选题原料")
   .option("-k, --api-key <key>", "AIConductor API Key（也可通过 AICONDUCTOR_API_KEY 环境变量或 .env 文件提供）")
   .option("--sources <ids>", "来源 ID，逗号分隔；默认 zhihu,weibo,douyin,aihot")
   .option("--limit <n>", "每个来源返回条数，范围 1 到 30", "30")
@@ -225,6 +225,13 @@ douyinCmd
 const xhsCmd = program
   .command("xhs")
   .description("小红书数据工具箱");
+
+xhsCmd
+  .command("hot-list")
+  .description("获取小红书实时热榜")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((options) => { xhsHotListCommand(options); });
 
 xhsCmd
   .command("note-publish")

@@ -4,9 +4,16 @@ const http = require("node:http");
 const https = require("node:https");
 const test = require("node:test");
 
-const { hotList, webSearch } = require("./api");
-const { formatHotListText, parseSourceIds, DEFAULT_HOT_LIST_SOURCES } = require("./commands/content");
+const { hotList, webSearch, xhsHotList } = require("./api");
+const {
+  buildBriefingResult,
+  formatHotListText,
+  parseLimit,
+  parseSourceIds,
+  DEFAULT_HOT_LIST_SOURCES,
+} = require("./commands/content");
 const { formatSearchText } = require("./commands/web_search");
+const { hotListTextFormatter } = require("./commands/xhs");
 
 function captureRequest(callback, responseBody = { success: true, billing: {} }, transport = https) {
   const originalRequest = transport.request;
@@ -26,7 +33,10 @@ function captureRequest(callback, responseBody = { success: true, billing: {} },
     return request;
   };
 
-  return callback().then(() => captured).finally(() => {
+  return callback().then((result) => {
+    captured.result = result;
+    return captured;
+  }).finally(() => {
     transport.request = originalRequest;
   });
 }
@@ -216,4 +226,120 @@ test("hotList raises API failures", async () => {
     ),
     { type: "api_error", message: "没有可用热榜来源" }
   );
+});
+
+test("xhsHotList calls the XHS hot-list endpoint over HTTP", async () => {
+  const responseBody = {
+    success: true,
+    data: {
+      date: "2026-07-29",
+      items: [{ rank: 1, title: "夏日穿搭", hot: "123万", trend: "up", url: "https://example.com/xhs" }],
+    },
+    billing: { service_fee: 0.01 },
+  };
+  const request = await captureRequest(() => xhsHotList("test-key"), responseBody, http);
+
+  assert.equal(request.options.path, "/api/xhs_hot_list");
+  assert.equal(request.options.port, 80);
+  assert.equal(request.options.headers.Authorization, "Bearer test-key");
+  assert.deepEqual(request.body, {});
+  assert.equal(request.result.billing, undefined);
+});
+
+test("xhsHotList raises API failures", async () => {
+  await assert.rejects(
+    captureRequest(
+      () => xhsHotList("test-key"),
+      { success: false, message: "小红书热榜暂不可用" },
+      http
+    ),
+    { type: "api_error", message: "小红书热榜暂不可用" }
+  );
+});
+
+test("buildBriefingResult preserves hot-list fields and adds XHS data", () => {
+  const result = buildBriefingResult(
+    {
+      status: "fulfilled",
+      value: {
+        success: true,
+        data: {
+          sources: [{ source_id: "zhihu", items: [{ title: "AI 应用趋势" }] }],
+          failed_sources: [{ source_id: "weibo", message: "上游暂不可用" }],
+        },
+      },
+    },
+    {
+      status: "fulfilled",
+      value: {
+        success: true,
+        data: { date: "2026-07-29", items: [{ rank: 1, title: "AI 工具" }] },
+      },
+    }
+  );
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.sources[0].source_id, "zhihu");
+  assert.equal(result.data.failed_sources[0].source_id, "weibo");
+  assert.equal(result.data.xhs_hot_list.items[0].title, "AI 工具");
+  assert.deepEqual(result.data.failed_services, []);
+});
+
+test("buildBriefingResult keeps either service when the other one fails", () => {
+  const hotListOnly = buildBriefingResult(
+    { status: "fulfilled", value: { success: true, data: { sources: [], failed_sources: [] } } },
+    { status: "rejected", reason: Object.assign(new Error("小红书超时"), { type: "network_error" }) }
+  );
+  assert.equal(hotListOnly.data.xhs_hot_list, null);
+  assert.deepEqual(hotListOnly.data.failed_services, [{ service: "xhs_hot_list", message: "小红书超时" }]);
+
+  const xhsOnly = buildBriefingResult(
+    { status: "rejected", reason: Object.assign(new Error("热榜超时"), { type: "network_error" }) },
+    { status: "fulfilled", value: { success: true, data: { date: "2026-07-29", items: [] } } }
+  );
+  assert.deepEqual(xhsOnly.data.sources, []);
+  assert.equal(xhsOnly.data.xhs_hot_list.date, "2026-07-29");
+  assert.deepEqual(xhsOnly.data.failed_services, [{ service: "hot_list", message: "热榜超时" }]);
+});
+
+test("buildBriefingResult fails only when both services fail", () => {
+  assert.throws(
+    () => buildBriefingResult(
+      { status: "rejected", reason: new Error("热榜超时") },
+      { status: "rejected", reason: new Error("小红书超时") }
+    ),
+    { type: "api_error", message: /均获取失败/ }
+  );
+});
+
+test("hot-list formatters render XHS trends and service failures", () => {
+  const briefingText = formatHotListText({
+    data: {
+      sources: [],
+      xhs_hot_list: {
+        date: "2026-07-29",
+        items: [{ rank: 1, title: "夏日穿搭", hot: "123万", trend: "up", url: "https://example.com/xhs" }],
+      },
+      failed_services: [{ service: "hot_list", message: "上游暂不可用" }],
+    },
+  });
+  assert.match(briefingText, /【小红书热榜】2026-07-29/);
+  assert.match(briefingText, /\[1\] 夏日穿搭 up/);
+  assert.match(briefingText, /服务失败:/);
+
+  const xhsText = hotListTextFormatter({
+    data: { date: "2026-07-29", items: [{ rank: 2, title: "露营", hot_value: 88, trend: "new" }] },
+  });
+  assert.match(xhsText, /小红书热榜/);
+  assert.match(xhsText, /\[2\] 露营 new/);
+  assert.match(xhsText, /热度: 88/);
+});
+
+test("parseLimit accepts the documented range", () => {
+  assert.equal(parseLimit(), 30);
+  assert.equal(parseLimit("1"), 1);
+  assert.equal(parseLimit(30), 30);
+  assert.throws(() => parseLimit("0"), { type: "validation_error" });
+  assert.throws(() => parseLimit("31"), { type: "validation_error" });
+  assert.throws(() => parseLimit("invalid"), { type: "validation_error" });
 });
