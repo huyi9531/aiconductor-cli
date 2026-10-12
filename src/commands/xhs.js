@@ -79,14 +79,17 @@ async function uploadMedia(apiKey, params, label) {
 
 /**
  * text 格式输出：用 ✓ 开头展示关键信息
+ * @param {object} resp
+ * @returns {string}
  */
-function textFormatter(resp) {
+function notePublishTextFormatter(resp) {
   const d = resp.data || {};
   const lines = [];
   lines.push("✓ 小红书笔记发布页已生成");
   lines.push(`  ID:       ${d.id}`);
   lines.push(`  H5 地址:  ${d.url}`);
   if (resp.message) lines.push(`  消息:     ${resp.message}`);
+  if (d.qrcode_url) lines.push(`  二维码图: ${d.qrcode_url}`);
   if (d.qrcode) lines.push(`  二维码:   ${d.qrcode.substring(0, 50)}...`);
   if (d.media) {
     if (d.media.images) lines.push(`  图片:     ${d.media.images.length} 张`);
@@ -254,7 +257,7 @@ async function notePublishCommand(type, options = {}) {
       video,
       cover,
     });
-    outputResult(result, format, textFormatter);
+    outputResult(result, format, notePublishTextFormatter);
     process.exit(0);
   } catch (err) {
     handleApiError(err, format);
@@ -262,4 +265,4 @@ async function notePublishCommand(type, options = {}) {
   }
 }
 
-module.exports = { hotListCommand, hotListTextFormatter, notePublishCommand };
+module.exports = { hotListCommand, hotListTextFormatter, notePublishCommand, notePublishTextFormatter };

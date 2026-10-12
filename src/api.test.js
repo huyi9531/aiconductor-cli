@@ -13,7 +13,7 @@ const {
   DEFAULT_HOT_LIST_SOURCES,
 } = require("./commands/content");
 const { formatSearchText } = require("./commands/web_search");
-const { hotListTextFormatter } = require("./commands/xhs");
+const { hotListTextFormatter, notePublishTextFormatter } = require("./commands/xhs");
 
 function captureRequest(callback, responseBody = { success: true, billing: {} }, transport = https) {
   const originalRequest = transport.request;
@@ -333,6 +333,29 @@ test("hot-list formatters render XHS trends and service failures", () => {
   assert.match(xhsText, /小红书热榜/);
   assert.match(xhsText, /\[2\] 露营 new/);
   assert.match(xhsText, /热度: 88/);
+});
+
+test("note-publish formatter surfaces the shareable qrcode image URL", () => {
+  const text = notePublishTextFormatter({
+    message: "发布页生成成功",
+    data: {
+      id: "note-1",
+      url: "https://oss.aiconductor.fun/temporary_7/xhs_note_publish/note-1/index.html",
+      qrcode: "data:image/png;base64,AAAA",
+      qrcode_url: "https://oss.aiconductor.fun/temporary_7/xhs_note_publish/note-1/qrcode.png",
+    },
+  });
+  assert.match(text, /H5 地址:/);
+  assert.match(text, /二维码图: https:\/\/oss\.aiconductor\.fun\/temporary_7\/xhs_note_publish\/note-1\/qrcode\.png/);
+});
+
+test("note-publish formatter tolerates responses without qrcode_url", () => {
+  // 旧版后端只返回 base64 二维码，formatter 不能因此报错
+  const text = notePublishTextFormatter({
+    data: { id: "note-2", url: "https://example.com/index.html" },
+  });
+  assert.match(text, /H5 地址:/);
+  assert.doesNotMatch(text, /二维码图/);
 });
 
 test("parseLimit accepts the documented range", () => {
