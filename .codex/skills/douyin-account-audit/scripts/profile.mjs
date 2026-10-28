@@ -86,22 +86,36 @@ const items = list.map((v) => {
 
 const wasChronological = items.every((v, i) => i === 0 || items[i - 1].createTime >= v.createTime);
 const sorted = [...items].sort((a, b) => b.createTime - a.createTime);
-const newest = sorted[0];
-const oldest = sorted[sorted.length - 1];
+const maxTime = sorted[0]?.createTime ?? 0;
+
+// 置顶作品会被放在原始顺序的最前面，且时间远早于最新一条。
+// 只认「开头连续几条都早于最新 30 天以上」，避免把周更账号的正常时间跨度误判成置顶。
+const pinned = [];
+for (const v of items) {
+  if (maxTime - v.createTime > 30 * 86400) pinned.push(v);
+  else break;
+}
+const pinnedIds = new Set(pinned.map((v) => v.id));
+
+// 近期统计排除置顶，否则历史爆款会把爆款线和跨度一起带偏
+const recent = sorted.filter((v) => !pinnedIds.has(v.id));
+const stats = recent.length ? recent : sorted;
+const newest = stats[0];
+const oldest = stats[stats.length - 1];
 const spanDays = (newest.createTime - oldest.createTime) / 86400;
 
 const anchor = newest.createTime;
-const within = (days) => sorted.filter((v) => anchor - v.createTime <= days * 86400).length;
+const within = (days) => stats.filter((v) => anchor - v.createTime <= days * 86400).length;
 const last30 = within(30);
 const last7 = within(7);
 
-const likes = sorted.map((v) => v.likes);
+const likes = stats.map((v) => v.likes);
 const likeMedian = median(likes) ?? 0;
 const likeMean = likes.length ? Math.round(likes.reduce((a, b) => a + b, 0) / likes.length) : 0;
 const hitThreshold = Math.max(1, likeMedian * 3);
-const hits = sorted.filter((v) => v.likes >= hitThreshold).sort((a, b) => b.likes - a.likes);
+const hits = stats.filter((v) => v.likes >= hitThreshold).sort((a, b) => b.likes - a.likes);
 
-const durations = sorted.map((v) => v.seconds).filter((n) => n !== null);
+const durations = stats.map((v) => v.seconds).filter((n) => n !== null);
 
 const result = {
   account: detail
@@ -114,6 +128,8 @@ const result = {
       }
     : null,
   sampled: sorted.length,
+  analyzed: stats.length,
+  pinned: pinned.map((v) => ({ at: v.at, likes: v.likes, title: v.title.slice(0, 40) })),
   spanDays: Math.round(spanDays),
   firstPost: oldest.at,
   lastPost: newest.at,
@@ -125,7 +141,6 @@ const result = {
   hits: hits.slice(0, 10),
   durationMedianSeconds: median(durations),
   chronological: wasChronological,
-  staleCount: sorted.filter((v) => anchor - v.createTime > 90 * 86400).length,
 };
 
 if (asJson) {
@@ -141,8 +156,14 @@ if (result.account) {
   );
   if (a.signature) lines.push(`简介：${a.signature.slice(0, 80)}`);
 }
-lines.push(`抽样：${result.sampled} 条${result.account?.awemeCount ? `（接口报共 ${result.account.awemeCount} 条）` : ""}`);
-lines.push(`时间：${result.firstPost} ~ ${result.lastPost}（跨度 ${result.spanDays} 天）`);
+lines.push(
+  `抽样：${result.sampled} 条${result.account?.awemeCount ? `（接口报共 ${result.account.awemeCount} 条）` : ""}` +
+    (result.pinned.length ? `，其中 ${result.pinned.length} 条疑似置顶，不计入近期统计` : "")
+);
+if (result.pinned.length) {
+  for (const v of result.pinned) lines.push(`  置顶代表作：${v.likes} 赞｜${v.at}｜${v.title}`);
+}
+lines.push(`时间：${result.firstPost} ~ ${result.lastPost}（近期 ${result.analyzed} 条，跨度 ${result.spanDays} 天）`);
 lines.push(`近 30 天 ${result.last30Days} 条 ≈ ${result.postsPerWeek30d} 条/周；近 7 天 ${result.last7Days} 条`);
 lines.push(`点赞：中位 ${result.likes.median}｜均值 ${result.likes.mean}｜最高 ${result.likes.max}`);
 lines.push(`爆款线（中位×3 = ${result.hitThreshold}）：${result.hits.length} 条`);
@@ -151,7 +172,7 @@ for (const h of result.hits) {
 }
 lines.push(`时长中位：${fmtMinutes(result.durationMedianSeconds)}`);
 if (!result.chronological) {
-  lines.push(`注意：接口返回的顺序不是时间序（有 ${result.staleCount} 条 90 天以前的老作品混在前部，疑似置顶），统计已按时间重排`);
+  lines.push("注意：接口返回的顺序不是时间序，已按时间重排后再统计");
 }
 
 process.stdout.write(lines.join("\n") + "\n");
