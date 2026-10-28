@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 /**
- * 抖音搜索结果清洗：毫秒转秒、时间戳转北京时间、按摘要去重、丢弃过短作品、
- * 计算赞粉比、按点赞降序输出。
+ * 抖音搜索结果清洗：毫秒转秒、时间戳转北京时间、跨轮去重、按摘要去重、
+ * 丢弃过短作品、算赞粉比与转赞/藏赞比、按点赞降序输出。
  *
  * 用法：
- *   node clean.mjs <搜索结果.json>
+ *   node clean.mjs <结果1.json> [结果2.json ...]
  *   aiconductor-cli douyin video-search ... | node clean.mjs -
- *   node clean.mjs <file> --json      # 输出 JSON，便于继续加工
+ *   node clean.mjs <file> [file...] --json      # 输出 JSON，便于继续加工
  *
- * 只做机械清洗；相关性判断、真假爆款判断留给调用方。
+ * 多个文件会先按 aweme_id 合并去重（同一条视频被多个关键词搜到只算一次），
+ * 再做摘要去重。只做机械清洗；相关性判断、真假爆款判断留给调用方。
  */
 
 import fs from "node:fs";
+import path from "node:path";
 
 /** 从 CLI 输出里取出 video_list，兼容未包外层的情况 */
 function pickPayload(raw) {
@@ -25,8 +27,7 @@ const readInput = (arg) => {
   } catch {
     // 管道里混进错误信息时，给出可读的提示而不是堆栈
     const preview = text.trim().slice(0, 200) || "(空)";
-    console.error(`输入不是合法 JSON，前 200 字：
-${preview}`);
+    console.error(`输入不是合法 JSON，前 200 字：\n${preview}`);
     process.exit(2);
   }
 };
@@ -48,16 +49,34 @@ const dedupeKey = (desc) =>
     .replace(/\s+/g, "")
     .slice(0, 24);
 
+const ratio = (numerator, denominator) =>
+  denominator > 0 ? Math.round((numerator / denominator) * 100) / 100 : null;
+
 const MIN_SECONDS = 10;
 
-function clean(raw) {
-  const payload = pickPayload(raw);
-  const list = Array.isArray(payload?.video_list) ? payload.video_list : [];
+function clean(sources) {
+  // 1) 跨轮去重：同一条视频被多个关键词搜到只算一次
+  const seenIds = new Set();
+  const merged = [];
+  let crossRoundDuplicates = 0;
 
+  for (const source of sources) {
+    for (const v of source.list) {
+      const id = String(v?.aweme_id ?? "");
+      if (id && seenIds.has(id)) {
+        crossRoundDuplicates += 1;
+        continue;
+      }
+      if (id) seenIds.add(id);
+      merged.push(v);
+    }
+  }
+
+  // 2) 摘要去重 + 丢弃过短作品
   const groups = new Map();
   let droppedShort = 0;
 
-  for (const v of list) {
+  for (const v of merged) {
     // video.duration 单位是毫秒
     const seconds = (v?.video?.duration ?? 0) / 1000;
     if (!seconds || seconds < MIN_SECONDS) {
@@ -71,18 +90,24 @@ function clean(raw) {
       continue;
     }
 
-    const digg = v?.statistics?.digg_count ?? 0;
+    const likes = v?.statistics?.digg_count ?? 0;
     const fans = v?.author?.follower_count ?? 0;
+    const collects = v?.statistics?.collect_count ?? 0;
+    const shares = v?.statistics?.share_count ?? 0;
+
     groups.set(key, {
       id: String(v?.aweme_id ?? ""),
       at: toBeijing(v?.create_time),
-      likes: digg,
+      likes,
       comments: v?.statistics?.comment_count ?? 0,
-      collects: v?.statistics?.collect_count ?? 0,
+      collects,
+      shares,
       seconds: Math.round(seconds),
       author: v?.author?.nickname ?? "",
       fans,
-      likePerFan: fans > 0 ? Math.round((digg / fans) * 100) / 100 : null,
+      likePerFan: ratio(likes, fans),
+      sharePerLike: ratio(shares, likes),
+      collectPerLike: ratio(collects, likes),
       title: (v?.desc || "").replace(/\s+/g, " ").trim(),
       duplicates: 1,
     });
@@ -91,15 +116,17 @@ function clean(raw) {
   const videos = [...groups.values()].sort((a, b) => b.likes - a.likes);
 
   // 时间戳口径若变化（真 UTC），最新一条会落在未来；提示而不是猜
-  const newest = list.reduce((max, v) => Math.max(max, v?.create_time ?? 0), 0);
+  const newest = merged.reduce((max, v) => Math.max(max, v?.create_time ?? 0), 0);
   const futureWarning = newest > Math.floor(Date.now() / 1000) + 600;
 
   return {
-    rawCount: list.length,
+    sources: sources.map((s) => ({ name: s.name, count: s.list.length })),
+    rawCount: merged.length + crossRoundDuplicates,
+    crossRoundDuplicates,
     keptCount: videos.length,
     droppedShort,
-    mergedDuplicates: list.length - droppedShort - videos.length,
-    hasMore: payload?.has_more ?? null,
+    mergedDuplicates: merged.length - droppedShort - videos.length,
+    hasMore: sources.some((s) => Number(s.hasMore) === 1) ? 1 : 0,
     futureWarning,
     videos,
   };
@@ -108,37 +135,77 @@ function clean(raw) {
 function render(result) {
   const pad = (s, n) => String(s).padEnd(n);
   const lines = [];
+
   if (result.futureWarning) {
     lines.push("⚠ 最新一条的时间晚于当前时间，create_time 口径可能变了，请核对时区后再用这份时间");
-    lines.push("");
   }
+
   lines.push(
-    `原始 ${result.rawCount} 条 → 保留 ${result.keptCount} 条` +
+    `原始 ${result.rawCount} 条 → 去重同视频 ${result.crossRoundDuplicates} 条 → 保留 ${result.keptCount} 条` +
       `（丢弃 <${MIN_SECONDS}s ${result.droppedShort} 条，合并同摘要 ${result.mergedDuplicates} 条）` +
       `｜has_more=${result.hasMore}`
   );
+
+  if (result.sources.length > 1) {
+    lines.push("来源：" + result.sources.map((s) => `${s.name} ${s.count}`).join(" / "));
+  }
   lines.push("");
+
   lines.push(
-    `${pad("时间", 12)} ${pad("点赞", 7)} ${pad("评论", 6)} ${pad("时长", 6)} ${pad("赞粉比", 7)} ${pad("作者(粉丝)", 24)} 标题`
+    [
+      pad("时间", 12),
+      pad("赞", 7),
+      pad("评", 6),
+      pad("藏", 6),
+      pad("转", 7),
+      pad("时长", 6),
+      pad("赞粉比", 7),
+      pad("转/赞", 6),
+      pad("藏/赞", 6),
+      pad("作者(粉丝)", 24),
+      "标题",
+    ].join(" ")
   );
+
   for (const v of result.videos) {
     const dur = v.seconds >= 60 ? `${Math.floor(v.seconds / 60)}m${v.seconds % 60}s` : `${v.seconds}s`;
-    const author = `${v.author}(${v.fans})`;
     const dup = v.duplicates > 1 ? `  ← 同摘要 ${v.duplicates} 个账号` : "";
     lines.push(
-      `${pad(v.at, 12)} ${pad(v.likes, 7)} ${pad(v.comments, 6)} ${pad(dur, 6)} ` +
-        `${pad(v.likePerFan ?? "-", 7)} ${pad(author.slice(0, 23), 24)} ${v.title.slice(0, 60)}${dup}`
+      [
+        pad(v.at, 12),
+        pad(v.likes, 7),
+        pad(v.comments, 6),
+        pad(v.collects, 6),
+        pad(v.shares, 7),
+        pad(dur, 6),
+        pad(v.likePerFan ?? "-", 7),
+        pad(v.sharePerLike ?? "-", 6),
+        pad(v.collectPerLike ?? "-", 6),
+        pad(`${v.author}(${v.fans})`.slice(0, 23), 24),
+        v.title.slice(0, 60) + dup,
+      ].join(" ")
     );
   }
   return lines.join("\n");
 }
 
 const args = process.argv.slice(2);
-const input = args.find((a) => !a.startsWith("--"));
-if (!input) {
-  console.error("用法: node clean.mjs <搜索结果.json|-> [--json]");
+const asJson = args.includes("--json");
+const paths = args.filter((a) => !a.startsWith("--"));
+
+if (paths.length === 0) {
+  console.error("用法: node clean.mjs <结果1.json> [结果2.json ...] [--json]");
   process.exit(2);
 }
 
-const result = clean(readInput(input));
-process.stdout.write((args.includes("--json") ? JSON.stringify(result, null, 2) : render(result)) + "\n");
+const sources = paths.map((p) => {
+  const payload = pickPayload(readInput(p));
+  return {
+    name: p === "-" ? "stdin" : path.basename(p),
+    list: Array.isArray(payload?.video_list) ? payload.video_list : [],
+    hasMore: payload?.has_more ?? null,
+  };
+});
+
+const result = clean(sources);
+process.stdout.write((asJson ? JSON.stringify(result, null, 2) : render(result)) + "\n");
