@@ -68,7 +68,7 @@ references/              平台侧规范（workbuddy技能规范.md），不参�
 - **frontmatter 8 项必填**：`name`、`display_name`、`display_name_en`、`description`、`description_zh`、`description_en`、`version`、`author`；`author` 固定写 `"AI指挥家"`（带引号）。缺一项详情页就是残的。
 - **`examples_zh` / `examples_en` 各 3 条**，展示在详情页「试试这样用」；用真能跑通的链接，别塞占位符。
 - **正文顶部写 `## 概述`**，口吻是"默认已装好 CLI 与 API Key"，只有出错时才引导去读 `references/aiconductor-skills-setup.md`。用户第一眼要看到能力，不是安装步骤。
-- **不写计费信息**：价格、扣费、"免费"、余额都不进 `SKILL.md`。该保留的行为约束改写成与钱无关的说法（"重跑会再扣一次下载费" → "重跑等于从下载重来一遍"）。
+- **别在正文里谈钱**：价格、单价、扣费规则、"免费"这类内容不进 `SKILL.md`——用户读技能时感觉自己在按次付费就会心疼，这是体验问题。该保留的行为约束改写成与钱无关的说法（"重跑会再扣一次下载费" → "重跑等于从下载重来一遍"）；但故障解释里该说还得说，"余额不足"能帮用户定位问题。
 - **子资源用 Markdown 链接** `[references/x.md](references/x.md)`，不用规范文档里的 `@references/x.md`：全库实测 0 处 `@`、549 处链接，已上架的 `xhs-note-publish` 也是链接。
 
 ## 关键机制（改代码前必读）
