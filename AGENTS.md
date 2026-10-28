@@ -55,11 +55,11 @@ references/              平台侧规范（workbuddy技能规范.md），不参�
 
 ### 维护 skill
 
-- 目录名、frontmatter `name`、实际调用的命令必须一致；`description` 写能力 + 用户原话触发 + 与相邻 skill 的边界（简报→content-briefing，单点搜索→doubao-search，网页→webpage-publish，抖音数据→douyin-toolbox，抖音文案→douyin-script-extract，小红书→xhs-note-publish）。
+- 目录名、frontmatter `name`、实际调用的命令必须一致；`description` 写能力 + 用户原话触发 + 与相邻 skill 的边界（简报→content-briefing，单点搜索→doubao-search，网页→webpage-publish，抖音数据→douyin-toolbox，抖音文案→douyin-script-extract，抖音选题→douyin-topic-radar，抖音评论→douyin-comment-insight，抖音账号→douyin-account-audit，小红书→xhs-note-publish）。
 - `SKILL.md` 只放路由、决策、命令行、响应路径、安全规则；长选项表、安装与密钥恢复放 `references/`，并写明何时读。
 - 默认 JSON 输出，文档写稳定的 `data.data.*` 路径（`outputResult` 会额外包一层 `{success, data}`）。
 - 用户请求执行即等同授权：不要每次预检安装或密钥；安装说明只在需要时读一次，修复后重试原命令一次。
-- 安装说明被复制成 6 份 `references/aiconductor-skills-setup.md`，已出现措辞漂移；改它必须同步 6 份（或先收敛成一份再引用）。
+- 安装说明被复制成 9 份 `references/aiconductor-skills-setup.md`（技能是独立安装单元，无法跨目录引用）；改它必须同步 9 份。改完跑 `md5sum .codex/skills/*/references/aiconductor-skills-setup.md | awk '{print $1}' | sort -u | wc -l`，结果必须是 **1**。
 
 ### 上架到 WorkBuddy
 
@@ -82,6 +82,8 @@ references/              平台侧规范（workbuddy技能规范.md），不参�
 - **`webpage publish` 分流**：按扩展名或内容特征判定 `md`/`html`（`--type` 可强制）。html 分支直接打 `html_publish`，md 分支打 `md_to_html` 并支持 `--copy-button`；两者是不同端点。
 - **小红书发布是两段式**：本地文件或 Base64 先经 `r2Upload` 换成临时公开 URL（`valid_days` 仅 1 或 7，默认 7；图片单张 ≤ 32MB，本地视频 ≤ 100MB），再调用计费接口生成 H5 页与二维码。Base64 参数支持 `@文件路径`。
 - **热点简报是部分成功语义**：热榜与小红书热榜并行请求，任一成功即返回 `success:true`，失败写入 `data.failed_sources` / `data.failed_services`；仅两个服务都失败才退出 1。不要简化成"全有或全无"。
+- **抖音字段单位不统一**：`video-search` 的 `video.duration` 是**毫秒**，`user-videos` 的 `duration` 是 `"MM:SS"` 字符串——同名不同单位，跨端点复用代码必翻车。
+- **抖音时间戳是北京时间编码**：`create_time` 按 UTC 渲染出来就是北京时间，**不要再 +8 小时**（2026-10-28 实测 `video-search`/`video-comments`/`user-videos` 三处：+8 会让半小时前发的视频落到 7 小时后）。`user-videos` 另带 `create_time_formatted`，同口径。
 - **密钥解析**：`-k` > `AICONDUCTOR_API_KEY` > **当前工作目录**的 `.env`（不向上查找）；缺失时 `resolveKeyOrExit` 打印错误并退出 1。
 
 ## 禁区
