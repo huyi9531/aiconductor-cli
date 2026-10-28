@@ -3,7 +3,7 @@ name: douyin-account-audit
 version: 1.0.0
 display_name: 抖音账号拆解
 display_name_en: Douyin Account Audit
-description: 抖音账号拆解 — 给一个抖音主页链接（或一个赛道词让技能找号），输出这个号在发什么、更新节奏、爆款率与可复制点。当用户说"扒一下这个号""这个账号怎么样""他为什么火""帮我找几个这个领域的号""对标账号分析"时使用；即使只丢来一个抖音主页链接、没说要"分析"，只要意图是看懂一个账号也应使用。只做账号维度的拆解；单条视频拆解、评论阅读、文案提取、赛道选题目不在本技能范围。
+description: 抖音账号拆解 — 给一个抖音主页链接（或一个赛道词让技能找号），输出这个号在发什么、更新节奏、爆款率与可复制点。当用户说"扒一下这个号""这个账号怎么样""他为什么火""帮我找几个这个领域的号""对标账号分析"时使用；即使只丢来一个抖音主页链接、没说要"分析"，只要意图是看懂一个账号也应使用。只做账号维度的拆解；单条视频拆解、评论阅读、文案提取、赛道选题分析不在本技能范围。
 description_zh: 抖音账号拆解 — 拉取抖音账号资料与最近作品，输出账号画像、更新节奏、内容结构、爆款清单与可复制点；也支持按赛道词找号。
 description_en: Douyin account audit — pull an account's profile and recent posts, then deliver its positioning, posting cadence, content mix, hit list, and what is worth copying. Also supports finding accounts by niche keyword.
 author: "AI指挥家"
