@@ -1,107 +1,131 @@
-# Repository Guidelines
+# 项目协作规范
 
-## Project Structure & Module Organization
+## 项目概述
 
+`aiconductor-cli` 是 AIConductor 平台 API 的命令行封装：Node.js >= 18、CommonJS、唯一运行时依赖 `commander`，发布到 npm 供 agent 与终端用户直接调用。六组命令覆盖网页发布、豆包搜索、热点简报、抖音数据、小红书数据；`.codex/skills/` 存放面向 agent 的工作流，指导如何调用这些命令。`README.md` 是对外命令契约，本文档是开发与维护契约。
+
+## 项目结构与模块组织
+
+```text
+bin/aiconductor-cli.js   唯一入口：注册全部命令、参数与选项（Commander.js）
+src/api.js               平台 HTTP 客户端：端点常量、请求体映射、鉴权、文件上传
+src/lib/cli-utils.js     输出与错误：outputResult / outputError / resolveKeyOrExit / handleApiError / safeParseInt
+src/commands/
+  html_publish.js        html publish
+  md_publish.js          webpage publish | list | delete
+  web_search.js          search web | image
+  content.js             content briefing
+  douyin.js              douyin 的 7 个子命令
+  xhs.js                 xhs hot-list | note-publish
+src/api.test.js          全部自动化测试（api 映射 + 纯格式化/聚合函数）
+api_docs/<endpoint>.md   每个平台接口的请求/响应/计费契约
+.codex/skills/<name>/    SKILL.md（路由与执行）+ references/（按条件加载）+ 可选 scripts/
 ```
-bin/aiconductor-cli.js     CLI entry point (Commander.js)
-src/
-  api.js                   HTTP API client — all platform calls live here
-  lib/cli-utils.js         Shared helpers: output, error handling, key resolution
-  commands/
-    html_publish.js        `html publish` command
-    md_publish.js          `webpage publish` command (Markdown/HTML)
-    web_search.js          `search web` / `search image` commands
-    douyin.js              All `douyin` subcommands
-    xhs.js                 `xhs note-publish` command
-.codex/skills/
-  <skill-name>/
-    SKILL.md               Skill entry point and decision/execution workflow
-    references/            Documentation loaded only when its stated condition applies
-    scripts/               Optional deterministic, reusable helper scripts
-```
 
-- Commands are thin wrappers: parse options, call `src/api.js`, format output, and exit.
-- Shared logic (key resolution, error formatting, output) goes into `src/lib/cli-utils.js`.
-- Each command file exports an async function; no side effects on load.
-- Skills are versioned source assets that guide use of one or more real CLI workflows. They are maintained with the corresponding command surface, but are not included in the npm package unless an explicit skill distribution mechanism is added.
+推导规则：命令组名与文件名**不一一对应**（`webpage` → `md_publish.js`，`search` → `web_search.js`），找实现先看 `bin/aiconductor-cli.js` 的注册处。命令文件只做四件事：解析选项、调用 `src/api.js`、格式化输出、`process.exit`；共享逻辑进 `src/lib/cli-utils.js`，HTTP 与鉴权细节不允许出现在命令文件里。
 
-## Build, Test, and Development Commands
+## 构建、测试与开发命令
 
-- `node bin/aiconductor-cli.js --help` — run locally without a build step
-- `npm install` — install the single runtime dependency (`commander`)
-- `npm test` — run the Node.js built-in test suite (`node --test`)
+| 命令 | 用途 |
+|---|---|
+| `npm install` | 安装唯一依赖 `commander`（有 lock） |
+| `npm test` | `node --test`，18 个用例，离线打桩，不需要 API Key |
+| `node bin/aiconductor-cli.js --help` | 不安装也能本地运行，核对命令面 |
+| `node bin/aiconductor-cli.js <组> <子命令> --help` | 核对某个命令的参数与默认值；CLI 契约以它为准 |
+| `npm pack --dry-run` | 确认发布内容：含 `src/**`（含测试）、`api_docs/`、`AGENTS.md`，不含 `.codex/` |
 
-## Coding Style & Naming Conventions
+无构建步骤、无 lint/formatter、无 CI。
 
-- 2-space indentation, no tabs
-- CommonJS (`require` / `module.exports`), no ESM
-- camelCase for JS identifiers; snake_case for API request fields
-- Every exported function gets a JSDoc block describing parameters and return type
-- Use `const` by default; `let` only when reassignment is needed
-- No formatter or linter configured — follow surrounding code style
+## 常见改动怎么做
 
-## Error Handling
+### 新增或修改命令
 
-- Never swallow errors with empty `catch`. At minimum, log and re-throw.
-- API errors carry a `.type` property (`http_error`, `network_error`, `validation_error`, `api_error`)
-- Commands exit with code 0 on success, 1 on failure
+1. 在对应 `src/commands/<组>.js` 加/改处理函数（薄封装，照现有文件风格）。
+2. 需要新端点时先读 `api_docs/<endpoint>.md`，在 `src/api.js` 加端点常量与函数，复用 `httpPost` + `stripBilling`。
+3. 在 `bin/aiconductor-cli.js` 注册子命令与选项——这是**唯一注册点**。`-k, --api-key`、`-f, --format` 每个命令各自声明，没有全局注入；可重复选项用 `collect`。
+4. 跑 `node bin/aiconductor-cli.js <组> <子命令> --help` 核对命令面，跑 `npm test`。
+5. 同步受影响产物：`README.md`（synopsis、选项表、示例）、对应的 `.codex/skills/*/SKILL.md`（命令、选项、`data.data.*` 路径）、`src/api.test.js`（改了请求映射或格式化时）。
 
-## Testing Guidelines
+### 新增平台接口
 
-Use the Node.js built-in test runner via `npm test`. Place tests next to the module they cover when practical (for example, `src/commands/web_search.test.js`).
+- 鉴权有两套并存写法，照 `api_docs` 与相邻实现选，不要"统一"：搜索、热榜、网页列表/删除、R2 上传、小红书发布、抖音视频搜索用 `Authorization: Bearer <key>`；发布类（`html_publish`、`md_to_html`）与多数抖音接口把 `api_key` 放进请求体。
+- 业务失败可能出现在 HTTP 200 的响应体里：`api.js` 内抛 `api_error`（搜索、热榜），或命令层用 `throwOnApiFailure`（网页列表/删除）。新接口选一种并补测试。
+- 响应先过 `stripBilling`，`billing` 不进任何输出。
 
-For changes to a CLI contract (commands, arguments, options, output, or errors), verify:
-- The affected `--help` output exposes the intended command surface.
-- A representative successful response is parsed and formatted correctly.
-- A representative validation, authentication, or upstream API failure reports a non-zero exit path with useful error output.
+### 维护 skill
 
-## Skill Design & Maintenance
+- 目录名、frontmatter `name`、实际调用的命令必须一致；`description` 写能力 + 用户原话触发 + 与相邻 skill 的边界（简报→content-briefing，单点搜索→doubao-search，网页→webpage-publish，抖音→douyin-toolbox，小红书→xhs-note-publish）。
+- `SKILL.md` 只放路由、决策、命令行、响应路径、安全规则；长选项表、安装与密钥恢复放 `references/`，并写明何时读。
+- 默认 JSON 输出，文档写稳定的 `data.data.*` 路径（`outputResult` 会额外包一层 `{success, data}`）。
+- 用户请求执行即等同授权：不要每次预检安装或密钥；安装说明只在需要时读一次，修复后重试原命令一次。
+- 安装说明被复制成 5 份 `references/aiconductor-skills-setup.md`，已出现措辞漂移；改它必须同步 5 份（或先收敛成一份再引用）。
 
-Skills in `.codex/skills` turn the CLI's verified capabilities into agent workflows. Keep them concise and operational; do not treat them as a second, independently authored API reference.
+## 关键机制（改代码前必读）
 
-### Structure & Triggering
+- **输出分层**：`outputResult` 在 JSON 模式打印 `{success:true, data:<API 原始响应>}`，服务端字段落在 `data.data.*`（如 `content briefing` 的 `data.data.sources`）；text 模式只打印自定义 formatter 的文本。错误一律走 stderr：JSON 为 `{success:false, error}`，text 为 `✗ 错误: ...`。
+- **退出码**：成功 0、失败 1，每个处理函数结尾显式 `process.exit()`，因此 `await` 之后的收尾逻辑不会执行。不带参数调用时 Commander 直接向 stderr 打帮助并退出 1（bin 末尾的 `outputHelp()` 在该路径不可达）。
+- **错误分类**：`http_error`（状态码 >= 400）、`network_error`、`validation_error`（本地参数校验）、`api_error`（HTTP 200 但业务失败）；`handleApiError` 按 `.type` 生成中文提示。新抛错带 `.type`。
+- **传输层**：请求打到 `plugin.aiconductor.fun/api/<endpoint>`。多数走 HTTPS；`hot_list_mixed` 与 `xhs_hot_list` 走明文 HTTP（`transport = http`，`api_docs` 也写作 `http://`，测试锁定 `port 80`）。线上 HTTPS 同样可达，属历史选择，别当成必须。
+- **本地先校验**：`validatePositiveInt` / `validateInt` 与各命令的显式检查负责区间（`limit` 1–30、搜索 `count` 网页 ≤ 50 / 图片 ≤ 5、图文 ≤ 18 张等），失败不请求、不计费。
+- **`webpage publish` 分流**：按扩展名或内容特征判定 `md`/`html`（`--type` 可强制）。html 分支直接打 `html_publish`，md 分支打 `md_to_html` 并支持 `--copy-button`；两者是不同端点。
+- **小红书发布是两段式**：本地文件或 Base64 先经 `r2Upload` 换成临时公开 URL（`valid_days` 仅 1 或 7，默认 7；图片单张 ≤ 32MB，本地视频 ≤ 100MB），再调用计费接口生成 H5 页与二维码。Base64 参数支持 `@文件路径`。
+- **热点简报是部分成功语义**：热榜与小红书热榜并行请求，任一成功即返回 `success:true`，失败写入 `data.failed_sources` / `data.failed_services`；仅两个服务都失败才退出 1。不要简化成"全有或全无"。
+- **密钥解析**：`-k` > `AICONDUCTOR_API_KEY` > **当前工作目录**的 `.env`（不向上查找）；缺失时 `resolveKeyOrExit` 打印错误并退出 1。
 
-- The skill directory name and the `name` field in `SKILL.md` frontmatter must identify the same skill.
-- The frontmatter `description` must state the capability, likely user phrasing or context, and boundaries with adjacent skills. Define one clear owner for overlapping workflows so similar skills do not compete for the same request.
-- Keep `SKILL.md` focused on routing, decisions, command invocation, response handling, and safety rules. Move long option tables, platform-specific setup, and detailed background material into `references/`, and state exactly when that reference should be read.
-- Add `scripts/` only for deterministic, reusable work that avoids repeated implementation. Do not add scripts solely to wrap a single documented CLI command.
-- Add platform-specific metadata (such as files under `agents/`) only after validating its schema and behavior in the target runtime. Remove obsolete or unverified metadata rather than preserving it by convention.
+## 禁区
 
-### CLI Contract & Execution
+- 不输出、不提交 `billing`、API Key、`.env` 内容、Base64 素材；密钥只走环境变量或命令行参数。
+- 不手改 `api_docs/` 去迁就实现——它是接口契约，契约变了才更新，并同时改测试。
+- 不把 `hot_list_mixed` / `xhs_hot_list` 的明文 HTTP 顺手改成 HTTPS（测试锁定 `port 80`；确需改则测试、文档一起改并验证线上）。
+- 不在命令文件里重写 HTTP、鉴权或格式化，不在 `src/lib` 之外复制共享工具。
+- 不新增运行时依赖、不引入 ESM（当前只有 `commander`，用原生 `http/https`）。
+- 不在 `src/` 内注册命令；命令注册只在 `bin/aiconductor-cli.js`。
 
-- Derive command names, arguments, option names, defaults, response fields, and error semantics from the local `--help` output, implementation, or tests. Do not copy stale documentation or infer unsupported behavior.
-- Default to JSON output and document stable response paths for the information the agent must return. Use text output only when the user asks for terminal-readable results.
-- A user's request for a CLI operation authorizes direct execution. Do not preflight installation, API Key availability, or environment setup on every invocation.
-- Put installation, upgrade, and API Key recovery instructions in an on-demand reference. Read it only when the user requests configuration or the command reports a missing CLI, authentication failure, or option/version incompatibility; after recovery, retry the original command at most once.
+## Agent 自主决策与复用约定
 
-### Safety & External Effects
+- 默认复用：`httpPost` / `stripBilling` / `validatePositiveInt` / `outputResult` / `handleApiError` / `resolveKeyOrExit`；新增代码照同目录文件写，不另起一套。
+- 默认选型：CommonJS + `commander` + 原生 `http/https` + `node:test`；不引入 axios、node-fetch 或测试框架。
+- 目录落点：一组命令一个 `src/commands/<组>.js`；HTTP 接口进 `src/api.js`；纯函数（格式化、聚合）留在命令文件内并导出以便测试。
+- 直接做：读改代码、跑 `npm test`、跑 `--help`、`npm pack --dry-run`。
+- 先确认：`npm publish`/发版、`git push`、任何带 API Key 的真实计费调用（`search`、`douyin`、`xhs`、`content`）、`webpage delete`（不可逆，会失效公开链接）、批量改写 skills。
+- 缺 API Key 时提示配置方式，不伪造、不复用示例输出。接任务先补齐背景、交付物、不做边界、约束、验收；"优化一下/完善一下"先翻译成可测量标准（哪条命令、哪个字段、什么退出码）。
 
-- Never write, commit, or echo API Keys, `.env` content, Base64 media, or other sensitive user material.
-- Describe externally visible effects such as paid calls, temporary links, and public publishing accurately, including their success condition. Do not expose internal billing fields in user-facing output.
-- For irreversible actions, including deletion or invalidating public links, first show the exact target and obtain explicit confirmation unless the user already supplied the unique target and explicitly requested deletion.
+## 最短验证闭环
 
-## CLI & Skill Synchronization
+`npm test`（18 个用例，离线打桩，不需要 API Key）。改动涉及 `bin/`、`README.md`、skill 文字或新增命令时，再补一条人工核对：`node bin/aiconductor-cli.js <组> <子命令> --help`——`bin/` 的接线没有自动化测试覆盖。
 
-- When a command, argument, option, default, output shape, or error behavior is added, renamed, or removed, search for affected skills, README sections, and tests. Update all impacted artifacts in the same change.
-- New or changed skills must be added to Git with their `.codex/skills/**` files. Keep `.codex/` excluded from `.npmignore` so skills remain versioned repository assets without being included in the npm package.
-- Before finalizing a skill-related change, validate the referenced command's `--help` output and the documented JSON response path against implementation or tests.
+## 任务执行与报告约定
 
-## Commit & Pull Request Guidelines
+复杂任务先定位根因或明确方案，再拆分实施与验证；≤3 文件的局部改动直接改并验证。步骤 ≥3 用 todo 跟踪，一次一个 in_progress，做完立即标 completed。交付用通俗语言报告改了什么、验证结果（命令 + 实际输出）、对外影响（命令面、计费、技能）。
 
-From the existing history:
+## 编码风格与命名约定
 
-- Messages are in English, often prefixed with conventional commit tags: `feat:`, `fix:`, `refactor:`, `chore:`, `style:`, `ci:`
-- Agent-authored commits include `[Agent]` before the description
-- PRs should describe the change, note API surface impacts, and keep diffs focused
+- 2 空格缩进，无 tab；CommonJS（`require` / `module.exports`），不写 ESM。
+- JS 标识符 camelCase；请求字段用 API 的 snake_case（`need_content`、`max_pages`），映射在 `api.js` 完成，命令层保留 camelCase 选项名。
+- 导出函数写 JSDoc（参数 + 返回类型）；`const` 优先，必要时 `let`。
+- 用户可见文本用中文；默认 JSON 输出，text 输出用 `✓` / `✗` 前缀与对齐字段名。
+- 无 formatter/linter，跟随相邻文件风格。
 
-## Adding a New Command
+## 测试指南
 
-1. Create `src/commands/<name>.js` with an async handler that calls `src/api.js`
-2. Add the API function to `src/api.js` if it calls a new endpoint
-3. Register the subcommand in `bin/aiconductor-cli.js`
-4. Update `README.md` — command synopsis, option table, and example
+- 框架：Node 内置 `node:test` + `node:assert/strict`，`npm test` 一次跑完；测试与模块同目录（目前集中在 `src/api.test.js`）。
+- 网络必须打桩：`captureRequest` 替换 `https.request` / `http.request`，断言 `options.path`、`options.port`、`Authorization` 与请求体，同时校验返回值。测试不依赖 API Key、不发真实请求。
+- 期望值独立于实现：请求字段以 `api_docs/<endpoint>.md` 为准；text 输出断言关键行（如 `结果数`、`URL`、`H5 地址`），不用整段快照。
+- CLI 契约改动覆盖三类：`--help` 暴露的命令面（人工核对）、成功响应的解析与格式化（单测）、校验/鉴权/上游失败的非零退出（单测 + 一次手工失败调用）。
 
-## Security & Configuration
+## 提交与 PR 规范
 
-- API Key is read from three sources in order: `-k` CLI argument → `AICONDUCTOR_API_KEY` env var → `.env` file
-- Never commit `.env` files or hardcoded credentials
+- 格式 `<tag>: <描述>`，tag 取自既有历史：`feat:`、`fix:`、`refactor:`、`docs:`、`skills:`、`search:`、`content:`、`release:`；agent 提交在前面加 `[Agent]`（如 `[Agent] release(cli): 1.4.0 —— ...`），描述可用中文。
+- 发版提交只改 `package.json` + `package-lock.json` 的版本号；发版前先跑 `npm test`。
+- 新增或修改 skill 必须随 `.codex/skills/**` 一起进 Git（`.npmignore` 已排除 `.codex/`，所以技能在仓库里版本化、不进 npm 包）。
+- 历史只有单作者、无 PR 记录，可直接在 `master` 提交；若走 PR，描述写清命令面/API 影响与验证命令，保持 diff 聚焦。
+
+## 安全与配置
+
+- 只需一个环境变量 `AICONDUCTOR_API_KEY`（只写变量名，值不入库）；解析顺序 `-k` > 环境变量 > 当前目录 `.env`。
+- `.env`、`*.log`、`node_modules/` 已在 `.gitignore`；Base64 素材文件同样不得入库。
+- 平台接口域名与各端点契约见 `api_docs/`，不要在代码外另维护第二份接口清单。
+
+## 文档维护约定（常驻，不删除）
+
+当本文档缺失/过时导致你走弯路时，在任务收尾顺手更新对应章节，只改受影响的最小范围。公共接口、命令、目录约定变化必须同步更新；一次性的会话经验不写入，只收下次还会踩的坑。
