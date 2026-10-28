@@ -8,11 +8,11 @@ description_zh: 抖音文案提取 — 输入抖音视频链接或分享口令�
 description_en: Douyin script extraction — turn a Douyin video link or share text into its spoken-word transcript. Handles single and batch links, and distinguishes no-speech, failed transcription, and over-length failures.
 author: "AI指挥家"
 examples_zh:
-  - "把这个抖音视频的文案提取出来：https://v.douyin.com/iRabc123/"
+  - "把这个抖音视频的文案提取出来：https://v.douyin.com/kR73uOnGWNQ/"
   - "扒一下这条视频的口播，我想拿它的文案做对标"
   - "这几条抖音链接的口播文案都帮我提一下，一条一条来"
 examples_en:
-  - "Extract the script from this Douyin video: https://v.douyin.com/iRabc123/"
+  - "Extract the script from this Douyin video: https://v.douyin.com/kR73uOnGWNQ/"
   - "Pull the spoken copy from this Douyin link — I need it for competitor research"
   - "Get me the transcripts for these Douyin links, one at a time"
 ---
