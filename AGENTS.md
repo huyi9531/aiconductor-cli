@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-`aiconductor-cli` 是 AIConductor 平台 API 的命令行封装：Node.js >= 18、CommonJS、唯一运行时依赖 `commander`，发布到 npm 供 agent 与终端用户直接调用。六组命令覆盖网页发布、豆包搜索、热点简报、抖音数据、小红书数据；`.codex/skills/` 存放面向 agent 的工作流，指导如何调用这些命令。`README.md` 是对外命令契约，本文档是开发与维护契约。
+`aiconductor-cli` 是 AIConductor 平台 API 的命令行封装：Node.js >= 18、CommonJS、唯一运行时依赖 `commander`，发布到 npm 供 agent 与终端用户直接调用。六组命令覆盖网页发布、豆包搜索、热点简报、抖音数据、小红书数据；`.codex/skills/` 存放面向 agent 的工作流，指导如何调用这些命令，其中对外发布的技能（`xhs-note-publish`、`douyin-script-extract`）还要满足 WorkBuddy 上架字段，见 `references/workbuddy技能规范.md`。`README.md` 是对外命令契约，本文档是开发与维护契约。
 
 ## 项目结构与模块组织
 
@@ -19,6 +19,7 @@ src/commands/
   xhs.js                 xhs hot-list | note-publish
 src/api.test.js          全部自动化测试（api 映射 + 纯格式化/聚合函数）
 api_docs/<endpoint>.md   每个平台接口的请求/响应/计费契约
+references/              平台侧规范（workbuddy技能规范.md），不参与 CLI 运行
 .codex/skills/<name>/    SKILL.md（路由与执行）+ references/（按条件加载）+ 可选 scripts/
 ```
 
@@ -32,7 +33,7 @@ api_docs/<endpoint>.md   每个平台接口的请求/响应/计费契约
 | `npm test` | `node --test`，18 个用例，离线打桩，不需要 API Key |
 | `node bin/aiconductor-cli.js --help` | 不安装也能本地运行，核对命令面 |
 | `node bin/aiconductor-cli.js <组> <子命令> --help` | 核对某个命令的参数与默认值；CLI 契约以它为准 |
-| `npm pack --dry-run` | 确认发布内容：含 `src/**`（含测试）、`api_docs/`、`AGENTS.md`，不含 `.codex/` |
+| `npm pack --dry-run` | 确认发布内容：含 `src/**`（含测试）、`api_docs/`、`AGENTS.md`、`references/`，不含 `.codex/` |
 
 无构建步骤、无 lint/formatter、无 CI。
 
@@ -59,6 +60,16 @@ api_docs/<endpoint>.md   每个平台接口的请求/响应/计费契约
 - 默认 JSON 输出，文档写稳定的 `data.data.*` 路径（`outputResult` 会额外包一层 `{success, data}`）。
 - 用户请求执行即等同授权：不要每次预检安装或密钥；安装说明只在需要时读一次，修复后重试原命令一次。
 - 安装说明被复制成 6 份 `references/aiconductor-skills-setup.md`，已出现措辞漂移；改它必须同步 6 份（或先收敛成一份再引用）。
+
+### 上架到 WorkBuddy
+
+对外发布的技能比仓库内自用的多一层要求，规范全文在 `references/workbuddy技能规范.md`：
+
+- **frontmatter 8 项必填**：`name`、`display_name`、`display_name_en`、`description`、`description_zh`、`description_en`、`version`、`author`；`author` 固定写 `"AI指挥家"`（带引号）。缺一项详情页就是残的。
+- **`examples_zh` / `examples_en` 各 3 条**，展示在详情页「试试这样用」；用真能跑通的链接，别塞占位符。
+- **正文顶部写 `## 概述`**，口吻是"默认已装好 CLI 与 API Key"，只有出错时才引导去读 `references/aiconductor-skills-setup.md`。用户第一眼要看到能力，不是安装步骤。
+- **不写计费信息**：价格、扣费、"免费"、余额都不进 `SKILL.md`。该保留的行为约束改写成与钱无关的说法（"重跑会再扣一次下载费" → "重跑等于从下载重来一遍"）。
+- **子资源用 Markdown 链接** `[references/x.md](references/x.md)`，不用规范文档里的 `@references/x.md`：全库实测 0 处 `@`、549 处链接，已上架的 `xhs-note-publish` 也是链接。
 
 ## 关键机制（改代码前必读）
 
@@ -87,7 +98,7 @@ api_docs/<endpoint>.md   每个平台接口的请求/响应/计费契约
 - 默认选型：CommonJS + `commander` + 原生 `http/https` + `node:test`；不引入 axios、node-fetch 或测试框架。
 - 目录落点：一组命令一个 `src/commands/<组>.js`；HTTP 接口进 `src/api.js`；纯函数（格式化、聚合）留在命令文件内并导出以便测试。
 - 直接做：读改代码、跑 `npm test`、跑 `--help`、`npm pack --dry-run`。
-- 先确认：`npm publish`/发版、`git push`、任何带 API Key 的真实计费调用（`search`、`douyin`、`xhs`、`content`）、`webpage delete`（不可逆，会失效公开链接）、批量改写 skills。
+- 先确认：`npm publish`/发版、`git push`、技能上架到 WorkBuddy、任何带 API Key 的真实计费调用（`search`、`douyin`、`xhs`、`content`）、`webpage delete`（不可逆，会失效公开链接）、批量改写 skills。
 - 缺 API Key 时提示配置方式，不伪造、不复用示例输出。接任务先补齐背景、交付物、不做边界、约束、验收；"优化一下/完善一下"先翻译成可测量标准（哪条命令、哪个字段、什么退出码）。
 
 ## 最短验证闭环
