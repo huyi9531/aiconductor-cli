@@ -1,6 +1,6 @@
 ---
 name: xhs-note-publish
-version: 1.0.0
+version: 1.1.0
 display_name: 小红书扫码发布
 display_name_en: Xiaohongshu Note Publish
 description: 小红书扫码发布 — 生成小红书图文/视频笔记的扫码发布页与二维码。当用户想要发布小红书笔记、生成小红书发布页、创建小红书扫码发布链接、把图片/视频做成可发布的笔记页面时应使用此 Skill。触发词包括：小红书发布、小红书笔记、小红书扫码、xhs发布、xhs note、red note publish、发小红书、生成小红书发布页、小红书图文发布、小红书视频发布。
@@ -115,6 +115,7 @@ JSON 格式输出示例：
       "id": "3502cf75-...-b8620053c7bf",
       "url": "https://oss.aiconductor.fun/temporary_7/xhs_note_publish/.../index.html",
       "qrcode": "data:image/png;base64,iVBORw0KGgo...",
+      "qrcode_url": "https://oss.aiconductor.fun/temporary_7/xhs_note_publish/.../qrcode.png",
       "media": {
         "images": ["https://example.com/photo1.jpg"],
         "video": null,
@@ -128,11 +129,12 @@ JSON 格式输出示例：
 从中提取以下信息返回给用户：
 
 - **`data.data.url`** — H5 发布页在线地址，点击可直接打开（桌面端展示手机模拟框 + 右侧扫码面板，移动端直接打开发布引导页）
-- **`data.data.qrcode`** — 二维码 base64 图片（`data:image/png;base64,...`），手机扫码即可打开发布页
+- **`data.data.qrcode_url`** — 二维码图片在线地址（与发布页同目录的 `qrcode.png`），**可直接当图片转发**到微信/飞书等只能收图片或链接的渠道
+- **`data.data.qrcode`** — 二维码 base64 图片（`data:image/png;base64,...`），适合在支持 HTML 的聊天里内嵌预览；内容与 `qrcode_url` 相同
 - **`data.data.id`** — 笔记唯一标识 UUID
 - **`data.data.media`** — 最终使用的素材列表（images / video / cover）
 
-**返回给用户时，优先展示 H5 链接和二维码。** 二维码 base64 可以直接嵌入 HTML img 标签在聊天中预览。
+**返回给用户时，优先展示 H5 链接与 `qrcode_url`**（在线图片更便于转发、嵌入卡片、二次分发）；需要内嵌预览时再用 base64 二维码。两者同级同寿命，均在 `temporary_7` 目录、7 天后过期。
 
 ### 错误处理
 
@@ -168,7 +170,7 @@ JSON 格式输出示例：
 
 ## 注意事项
 
-1. 临时上传链接有效期为 1 或 7 天，过期自动清理；应在有效期内完成发布
+1. `url` 与 `qrcode_url` 同在 `temporary_7` 目录，7 天后自动过期清理；本地/Base64 素材的临时上传链接按 `--upload-valid-days` 为 1 或 7 天；均应在有效期内完成发布
 2. 素材 URL 必须为公网可访问的 HTTP(S) 地址，内网 IP 和 localhost 将被拒绝
 3. URL 视频上限 200MB；本地/Base64 视频受上传接口限制为 100MB；图片上限 32MB
 4. 生成的 H5 页面支持移动端扫码后在浏览器中点击"发布到小红书"按钮自动唤起 App
