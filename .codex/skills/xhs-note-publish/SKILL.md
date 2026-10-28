@@ -1,6 +1,12 @@
 ---
 name: xhs-note-publish
+version: 1.0.0
+display_name: 小红书扫码发布
+display_name_en: Xiaohongshu Note Publish
 description: 小红书扫码发布 — 生成小红书图文/视频笔记的扫码发布页与二维码。当用户想要发布小红书笔记、生成小红书发布页、创建小红书扫码发布链接、把图片/视频做成可发布的笔记页面时应使用此 Skill。触发词包括：小红书发布、小红书笔记、小红书扫码、xhs发布、xhs note、red note publish、发小红书、生成小红书发布页、小红书图文发布、小红书视频发布。
+description_zh: 小红书扫码发布 — 生成小红书图文/视频笔记的扫码发布页与二维码。支持标题、正文、图片（最多18张）与视频素材，用户扫码后可在手机浏览器一键唤起小红书 App 发布。
+description_en: Xiaohongshu note publishing via QR code — generate an H5 publishing page and QR code for image/text or video notes. Supports title, content, images (up to 18) and video assets; users scan the code and open the Xiaohongshu app to publish in one tap.
+author: "AI指挥家"
 ---
 
 ## 概述
@@ -9,13 +15,40 @@ description: 小红书扫码发布 — 生成小红书图文/视频笔记的扫�
 
 适用环境默认已配置好 CLI 和 API Key。当遇到安装或配置问题时，读取 [references/aiconductor-skills-setup.md](references/aiconductor-skills-setup.md)。仅当用户明确要求初始化或配置 Skill 时才主动读取该文件。
 
+## 准备工作
+
+发布前需确认用户已准备好：
+
+- **图文笔记**：标题（可选）、正文（可选）、至少 1 张图片（最多 18 张）
+- **视频笔记**：标题（可选）、正文（可选）、1 个视频，可选封面图
+
+图片、视频和封面均支持公网 HTTP(S) URL、本地文件路径、Base64/data URL。保存 Base64 内容的文本文件使用 `@文件路径` 传入。
+
+本地文件由 CLI 自动转成 data URL，与 Base64 素材一起通过 JSON 接口上传到临时 R2，再将公开 URL 传给小红书发布接口。默认链接有效期为 7 天，可用 `--upload-valid-days 1` 改为 1 天。
+
 ## 发布流程
 
-根据用户已经提供的内容直接组合命令。`normal` 需要至少一张图片，`video` 需要且只能使用一个视频来源；只有笔记类型或对应必填素材缺失时，才针对该缺失项提问。
+### 1. 确认笔记类型
 
-图片、视频和封面均支持公网 HTTP(S) URL、本地文件路径、Base64/data URL。保存 Base64 内容的文本文件使用 `@文件路径` 传入。本地文件与 Base64 素材由 CLI 上传为临时公开 URL，默认有效期为 7 天，可用 `--upload-valid-days 1` 改为 1 天。
+根据用户意图确认笔记类型：
+- `normal` — 图文笔记（需要图片列表）
+- `video` — 视频笔记（需要视频素材，可选封面图）
 
-### 执行发布
+### 2. 收集素材信息
+
+从用户输入中提取以下信息，缺失的必填项要主动询问：
+
+| 信息 | 说明 | 是否必填 |
+|------|------|----------|
+| 笔记类型 | `normal` 或 `video` | 是 |
+| 图片素材 | URL、本地文件、Base64，可混用 | normal 必填，合计最多 18 张 |
+| 视频素材 | URL、本地文件、Base64 三选一 | video 必填 |
+| 标题 | 笔记标题，中文计 1 字/英文数字计 0.5 字，最多 20 字 | 否 |
+| 正文 | 笔记正文，最多 1000 字符 | 否 |
+| 封面图 | URL、本地文件、Base64 三选一（仅 video 类型） | 否 |
+| 临时链接有效期 | 本地/Base64 素材上传后的有效期，1 或 7 天 | 否，默认 7 天 |
+
+### 3. 执行发布
 
 使用 JSON 格式（默认，AI 友好）。
 
@@ -68,7 +101,7 @@ aiconductor-cli xhs note-publish video \
 aiconductor-cli xhs note-publish <normal|video> ... -f text
 ```
 
-### 解析输出
+### 4. 解析输出
 
 JSON 格式输出示例：
 
@@ -112,7 +145,7 @@ JSON 格式输出示例：
   - 图片超过 32MB；URL 视频超过 200MB；本地/Base64 视频超过 100MB
   - 图片数量超过 18 张
   - 标题超过 20 字或正文超过 1000 字符
-- 参数校验失败或素材下载失败不扣费，仅页面生成成功时才扣费
+- 参数校验失败或素材下载失败不会生成发布页，按上面的原因修正后重试
 
 ## 全部选项
 
@@ -135,11 +168,9 @@ JSON 格式输出示例：
 
 ## 注意事项
 
-1. 采用后扣费模式：仅页面生成成功时才扣费，参数校验失败或素材下载失败不扣费
-2. 发布页生成 0.05 元/次，本地/Base64 素材预上传免费
-4. 临时上传链接有效期为 1 或 7 天，过期自动清理；应在有效期内完成发布
-5. 素材 URL 必须为公网可访问的 HTTP(S) 地址，内网 IP 和 localhost 将被拒绝
-6. URL 视频上限 200MB；本地/Base64 视频受上传接口限制为 100MB；图片上限 32MB
-7. 生成的 H5 页面支持移动端扫码后在浏览器中点击"发布到小红书"按钮自动唤起 App
-8. 默认使用 JSON 输出格式，便于 AI Agent 解析
-9. 图片顺序按 URL、本地文件、Base64 分组，各组内部保持输入顺序；第一张图片作为笔记封面
+1. 临时上传链接有效期为 1 或 7 天，过期自动清理；应在有效期内完成发布
+2. 素材 URL 必须为公网可访问的 HTTP(S) 地址，内网 IP 和 localhost 将被拒绝
+3. URL 视频上限 200MB；本地/Base64 视频受上传接口限制为 100MB；图片上限 32MB
+4. 生成的 H5 页面支持移动端扫码后在浏览器中点击"发布到小红书"按钮自动唤起 App
+5. 默认使用 JSON 输出格式，便于 AI Agent 解析
+6. 图片顺序按 URL、本地文件、Base64 分组，各组内部保持输入顺序；第一张图片作为笔记封面
