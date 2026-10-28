@@ -1,11 +1,13 @@
 ---
 name: douyin-toolbox
-description: 抖音数据获取与处理工具箱，支持视频详情、评论抓取、用户主页、视频搜索、语音转文字等功能。当用户需要操作抖音数据时使用，例如：(1) 查看某个视频的详细信息或评论，(2) 获取用户主页视频列表或用户资料，(3) 按关键词搜索抖音用户或视频，(4) 将抖音视频语音转为文字，(5) 任何涉及抖音数据提取或分析的任务。
+description: 抖音数据获取与处理工具箱，支持视频详情、评论抓取、用户主页、视频搜索等功能。当用户需要操作抖音数据时使用，例如：(1) 查看某个视频的详细信息或评论，(2) 获取用户主页视频列表或用户资料，(3) 按关键词搜索抖音用户或视频，(4) 任何涉及抖音数据提取或分析的任务。若用户只是想把抖音视频转成口播文案，改用 douyin-script-extract 技能。
 ---
 
 ## 概述
 
-此 Skill 通过全局安装的 `aiconductor-cli` 命令行工具，调用 AIC 抖音系列 API，支持视频详情、评论抓取、用户视频、用户详情、用户搜索、视频搜索、链接转文字共 7 个功能。
+此 Skill 通过全局安装的 `aiconductor-cli` 命令行工具，调用 AIC 抖音系列 API，支持视频详情、评论抓取、用户视频、用户详情、用户搜索、视频搜索共 6 个数据能力。
+
+把视频转成口播文案不在这里，改用 `douyin-script-extract` 技能：文案提取有独立的失败判定与交付口径，混在数据查询里容易把 `文字提取失败` 当成正文交出去。
 
 适用环境默认已配置好 CLI 和 API Key。当遇到安装或配置问题时，读取 [references/aiconductor-skills-setup.md](references/aiconductor-skills-setup.md)。仅当用户明确要求初始化或配置 Skill 时才主动读取该文件。
 
@@ -181,19 +183,9 @@ aiconductor-cli douyin video-search <关键词> [选项]
 aiconductor-cli douyin video-search "北京旅游" --sort-type 2 --publish-time 7 --max-pages 2
 ```
 
-### 链接转文字
+### 链接转文字（已独立）
 
-将抖音视频链接中的语音转换为文字。支持两套语音识别策略，自动检测转写准确度。
-
-```bash
-aiconductor-cli douyin link-to-text <视频URL>
-```
-
-**示例：**
-
-```bash
-aiconductor-cli douyin link-to-text "https://v.douyin.com/xxx/"
-```
+`douyin link-to-text` 仍然可用，但文案提取有自己的失败语义（HTTP 200 + `text: "文字提取失败"` 也是失败）和交付要求（原样输出、不改写），标准流程在 `douyin-script-extract` 技能里。需要文案时直接走那个技能。
 
 ### 通用选项
 
