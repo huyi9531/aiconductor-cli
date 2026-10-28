@@ -128,13 +128,13 @@ JSON 格式输出示例：
 
 从中提取以下信息返回给用户：
 
-- **`data.data.url`** — H5 发布页在线地址，点击可直接打开（桌面端展示手机模拟框 + 右侧扫码面板，移动端直接打开发布引导页）
-- **`data.data.qrcode_url`** — 二维码图片在线地址（与发布页同目录的 `qrcode.png`），**可直接当图片转发**到微信/飞书等只能收图片或链接的渠道
-- **`data.data.qrcode`** — 二维码 base64 图片（`data:image/png;base64,...`），适合在支持 HTML 的聊天里内嵌预览；内容与 `qrcode_url` 相同
+- **`data.data.qrcode_url`** — 二维码图片在线地址（与发布页同目录的 `qrcode.png`），能直接显示成图，也能当图片转发到微信/飞书
+- **`data.data.qrcode`** — 同一张二维码的 base64 图片（`data:image/png;base64,...`），需要内嵌预览时用，内容与 `qrcode_url` 相同
+- **`data.data.url`** — H5 发布页在线地址（桌面端展示手机模拟框 + 右侧扫码面板，移动端直接打开发布引导页）
 - **`data.data.id`** — 笔记唯一标识 UUID
 - **`data.data.media`** — 最终使用的素材列表（images / video / cover）
 
-**返回给用户时，优先展示 H5 链接与 `qrcode_url`**（在线图片更便于转发、嵌入卡片、二次分发）；需要内嵌预览时再用 base64 二维码。两者同级同寿命，均在 `temporary_7` 目录、7 天后过期。
+**返回给用户时，优先展示二维码**：先给 `data.data.qrcode_url`（在线图片，能直接显示也能转发），需要内嵌预览时用 `data.data.qrcode` 的 base64。H5 链接 `data.data.url` 放在后面作为补充——用户要的是扫码，不是点链接。`url` 与 `qrcode_url` 同在 `temporary_7` 目录，7 天后过期。
 
 ### 错误处理
 
