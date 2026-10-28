@@ -128,13 +128,15 @@ JSON 格式输出示例：
 
 从中提取以下信息返回给用户：
 
+- **`data.data.qrcode`** — 二维码图片（`data:image/png;base64,...`），可直接内嵌成图片给用户扫，内容是发布页地址
 - **`data.data.url`** — H5 发布页在线地址，点击可直接打开（桌面端展示手机模拟框 + 右侧扫码面板，移动端直接打开发布引导页）
-- **`data.data.qrcode_url`** — 二维码图片在线地址（与发布页同目录的 `qrcode.png`），**可直接当图片转发**到微信/飞书等只能收图片或链接的渠道
-- **`data.data.qrcode`** — 二维码 base64 图片（`data:image/png;base64,...`），适合在支持 HTML 的聊天里内嵌预览；内容与 `qrcode_url` 相同
+- **`data.data.qrcode_url`** — 同一张二维码的在线地址（发布页同目录的 `qrcode.png`），便于转发到只收图片或链接的渠道
 - **`data.data.id`** — 笔记唯一标识 UUID
 - **`data.data.media`** — 最终使用的素材列表（images / video / cover）
 
-**返回给用户时，优先展示 H5 链接与 `qrcode_url`**（在线图片更便于转发、嵌入卡片、二次分发）；需要内嵌预览时再用 base64 二维码。两者同级同寿命，均在 `temporary_7` 目录、7 天后过期。
+**返回给用户时，优先展示二维码图片**：把 `data.data.qrcode` 的 base64 直接内嵌成图片（`![扫码发布](data:image/png;base64,...)`），用户拿手机一扫就进发布页，不用点链接、不用复制。图片之后给 H5 链接 `data.data.url`；如果要把二维码单独转发到微信/飞书这类只收图片或链接的渠道，再补 `data.data.qrcode_url`。
+
+注意有效期：`url` 与 `qrcode_url` 都在 `temporary_7` 目录下、7 天后过期；base64 图片本身不会失效，但扫进去的页面一样会过期。
 
 ### 错误处理
 
