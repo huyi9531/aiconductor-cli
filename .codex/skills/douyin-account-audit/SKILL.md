@@ -8,11 +8,11 @@ description_zh: 抖音账号拆解 — 拉取抖音账号资料与最近作品�
 description_en: Douyin account audit — pull an account's profile and recent posts, then deliver its positioning, posting cadence, content mix, hit list, and what is worth copying. Also supports finding accounts by niche keyword.
 author: "AI指挥家"
 examples_zh:
-  - "扒一下这个抖音号，看看他到底在发什么：https://www.douyin.com/user/MS4wLjABAAAA..."
+  - "扒一下这个抖音号，看看他到底在发什么：https://v.douyin.com/bALAv_7KR-k/"
   - "帮我找几个 Python 教学赛道的号，要粉丝 1 万到 10 万的"
   - "这个号最近涨得很快，分析下他的内容结构和爆款规律"
 examples_en:
-  - "Break down this Douyin account — what exactly are they posting? https://www.douyin.com/user/MS4wLjABAAAA..."
+  - "Break down this Douyin account — what exactly are they posting? https://v.douyin.com/bALAv_7KR-k/"
   - "Find a few Python tutorial accounts with 10k–100k followers"
   - "This account is growing fast — analyze its content mix and what makes its hits work"
 ---
