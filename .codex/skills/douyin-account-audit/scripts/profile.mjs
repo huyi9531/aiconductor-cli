@@ -50,8 +50,13 @@ const fmtMinutes = (m) => {
   return rest ? `${h}m${rest}s` : `${h}m`;
 };
 
-const [videosPath, detailPath] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
-const asJson = process.argv.includes("--json");
+const rawArgs = process.argv.slice(2);
+const asJson = rawArgs.includes("--json");
+const pickIdx = rawArgs.indexOf("--pick");
+const pickCount = pickIdx >= 0 ? Number.parseInt(rawArgs[pickIdx + 1], 10) || 0 : 0;
+const [videosPath, detailPath] = rawArgs.filter(
+  (a, i) => !a.startsWith("--") && !(pickIdx >= 0 && i === pickIdx + 1)
+);
 
 if (!videosPath) {
   console.error("用法: node profile.mjs <user-videos.json> [user-detail.json] [--json]");
@@ -81,6 +86,9 @@ const items = list.map((v) => {
     comments: v?.statistics?.comment_count ?? 0,
     collects: v?.statistics?.collect_count ?? 0,
     title: (v?.desc || "").replace(/\s+/g, " ").trim(),
+    url: v?.share_url
+      ? `https://www.douyin.com/video/${String(v.share_url).match(/\/video\/(\d+)/)?.[1] ?? ""}`
+      : "",
   };
 });
 
@@ -142,6 +150,19 @@ const result = {
   durationMedianSeconds: median(durations),
   chronological: wasChronological,
 };
+
+// --pick：挑几条代表作去取口播文案，输出可直接喂给 link-to-text
+if (pickCount > 0) {
+  const picked = [...stats].sort((a, b) => b.likes - a.likes).slice(0, pickCount);
+  const rows = picked.map((v) => {
+    const dur =
+      v.seconds === null ? "?" : v.seconds >= 60 ? `${Math.floor(v.seconds / 60)}m${v.seconds % 60}s` : `${v.seconds}s`;
+    const note = v.seconds !== null && v.seconds > 1200 ? "  ← 超 20 分钟，转写拿不到" : "";
+    return `${v.likes} 赞 | ${v.at} | ${dur} | ${v.title.slice(0, 50)} | ${v.url}${note}`;
+  });
+  process.stdout.write(rows.join("\n") + "\n");
+  process.exit(0);
+}
 
 if (asJson) {
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
