@@ -19,7 +19,7 @@ src/commands/
   xhs.js                 xhs hot-list | note-publish
 src/api.test.js          全部自动化测试（api 映射 + 纯格式化/聚合函数）
 api_docs/<endpoint>.md   每个平台接口的请求/响应/计费契约
-references/              平台侧规范（workbuddy技能规范.md），不参与 CLI 运行
+references/              平台侧规范（workbuddy技能规范.md），不参与 CLI 运行；已 gitignore + npmignore，只在本机
 .codex/skills/<name>/    SKILL.md（路由与执行）+ references/（按条件加载）+ 可选 scripts/
 ```
 
@@ -33,7 +33,7 @@ references/              平台侧规范（workbuddy技能规范.md），不参�
 | `npm test` | `node --test`，18 个用例，离线打桩，不需要 API Key |
 | `node bin/aiconductor-cli.js --help` | 不安装也能本地运行，核对命令面 |
 | `node bin/aiconductor-cli.js <组> <子命令> --help` | 核对某个命令的参数与默认值；CLI 契约以它为准 |
-| `npm pack --dry-run` | 确认发布内容：含 `src/**`（含测试）、`api_docs/`、`AGENTS.md`、`references/`，不含 `.codex/` |
+| `npm pack --dry-run` | 确认发布内容：含 `src/**`（含测试）、`api_docs/`、`AGENTS.md`，不含 `.codex/` 与 `references/`（平台侧规范只在本机，已从 `.npmignore`/`.gitignore` 排掉） |
 
 无构建步骤、无 lint/formatter、无 CI。
 

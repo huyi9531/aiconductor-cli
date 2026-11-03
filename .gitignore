@@ -3,3 +3,7 @@ node_modules/
 *.log
 .DS_Store
 .agents/
+
+# 平台侧规范：只在本机留存，不进 npm 包、不入库
+references/
+.codex/skills/*.zip
