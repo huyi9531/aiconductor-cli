@@ -23,7 +23,7 @@ examples_en:
 
 此 Skill 通过全局安装的 `aiconductor-cli` 命令行工具，把抖音视频链接（短链、分享口令、`douyin.com/video/<id>`）转成这条视频的口播原文。只做这一件事。
 
-适用环境默认已配置好 CLI 和 API Key。当遇到 `command not found`、缺少密钥、鉴权失败或版本不兼容时，读取 [references/aiconductor-skills-setup.md](references/aiconductor-skills-setup.md)，修好后重试原命令一次；再失败就把原始错误交给用户。仅当用户明确要求初始化或配置 Skill 时才主动读取该文件。
+适用环境默认已配置好 CLI 和 API Key。开工前先跑 `scripts/preflight.mjs` 自检，比跑到一半才发现缺密钥划算。当遇到 `command not found`、缺少密钥、鉴权失败或版本不兼容时，读取 [references/aiconductor-skills-setup.md](references/aiconductor-skills-setup.md)，修好后重试原命令一次；再失败就把原始错误交给用户。
 
 ## 什么时候用
 
@@ -42,23 +42,37 @@ examples_en:
 
 ## 执行
 
-### 1. 只取链接
+### 1. 自检（不联网、不花钱）
 
-分享口令是一段中英混排文本，链接夹在中间：
-
-```text
-7.53 复制打开抖音，看看【XXX的作品】标题 #话题 https://v.douyin.com/iRabc123/ 复制此链接，打开Dou音搜索，直接观看视频！
+```bash
+node scripts/preflight.mjs "https://v.douyin.com/kR73uOnGWNQ/"
 ```
 
-只把 `https://v.douyin.com/iRabc123/` 这一段传进去。整段文本当参数也能跑，但里面的换行、`#`、`&` 会被 shell 解释，没必要冒这个险。短链、`https://www.douyin.com/video/<id>` 都可以。
+一次查三件：`aiconductor-cli` 装没装、API Key 有没有、这串输入里能不能抽出抖音视频链接。全绿时它把下一步该执行的命令直接打印出来；出现 `✗` 就先修那一条，别带着问题硬跑——缺 CLI 或缺密钥时调用只会得到一条报错。
+
+分享口令直接整段丢进去，链接由它抽：
+
+```text
+7.53 复制打开抖音，看看【XXX的作品】标题 #话题 https://v.douyin.com/kR73uOnGWNQ/ 复制此链接，打开Dou音搜索，直接观看视频！
+```
 
 ### 2. 跑一次
 
 ```bash
-aiconductor-cli douyin link-to-text "https://v.douyin.com/iRabc123/"
+aiconductor-cli douyin link-to-text "https://v.douyin.com/kR73uOnGWNQ/"
 ```
 
-用户给了链接就是要这条文案，直接跑，不必再确认一遍。接口要先下载再转写，单条要等一会儿才有输出，**别因为迟迟没反应就中断或重跑**——重跑等于从下载重来一遍。`-f text` 对这条命令没有定制格式，输出依旧是 JSON，直接读 JSON 即可。
+短链由上游在下载时解析，解析不了就换长链：
+
+```bash
+aiconductor-cli douyin link-to-text "https://www.douyin.com/video/7691214243253970597"
+```
+
+用户给了链接就是要这条文案，直接跑，不必再确认一遍。接口要先下载再转写，单条要等一会儿才有输出，**别因为迟迟没反应就中断或重跑**——重跑等于从下载重来一遍。
+
+只传链接本身，不要把整段分享口令塞进命令：里面的换行、`#`、`&` 会被 shell 解释。
+
+`-f text` 没有定制格式，输出的仍是 JSON，只是少了外层 `{"success":true,"data":…}` 包装——那时文案在顶层 `text`，不是 `data.data.text`。
 
 ### 3. 先验真，再交付
 
@@ -108,6 +122,17 @@ aiconductor-cli douyin link-to-text "https://v.douyin.com/iRabc123/"
 转写只到同音字级别：专有名词、术语、文言词常错一个字（"如丧考妣"转成"如丧考比"），也会有重复词和 `****` 这类屏蔽占位。这些都不是你该静默修的，照原样交；用户要引用时提一句"原文这里可能有识别错误"。
 
 默认把全文直接贴在回复里——用户要的就是能读的原文，别擅自落盘污染人家的仓库。只有用户明确要文件（或要归档到某个项目）时才写，路径听用户的，没指定就放当前目录，文件名用链接尾段。
+
+## 全部选项
+
+| 选项 | 作用 | 说明 |
+|---|---|---|
+| `<video_url>` | 抖音视频链接 | 短链、`douyin.com/video/<id>`、`iesdouyin.com/share/video/<id>` 都行；本地 mp4 不行 |
+| `-k, --api-key <key>` | 临时指定 API Key | 优先于环境变量 |
+| `-f, --format <fmt>` | 输出格式 | 默认 `json`；`text` 的输出见上一节 |
+| `-h, --help` | 查看命令帮助 | — |
+
+密钥解析顺序：`-k` > 环境变量 `AICONDUCTOR_API_KEY` > **当前工作目录**的 `.env`（不向上查找）。
 
 ## 失败怎么说
 
