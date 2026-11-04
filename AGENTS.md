@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-`aiconductor-cli` 是 AIConductor 平台 API 的命令行封装：Node.js >= 18、CommonJS、唯一运行时依赖 `commander`，发布到 npm 供 agent 与终端用户直接调用。六组命令覆盖网页发布、豆包搜索、热点简报、抖音数据、小红书数据；`.codex/skills/` 存放面向 agent 的工作流，指导如何调用这些命令，其中对外发布的技能（`xhs-note-publish`、`douyin-script-extract`）还要满足 WorkBuddy 上架字段，见 `references/workbuddy技能规范.md`。`README.md` 是对外命令契约，本文档是开发与维护契约。
+`aiconductor-cli` 是 AIConductor 平台 API 的命令行封装：Node.js >= 18、CommonJS、唯一运行时依赖 `commander`，发布到 npm 供 agent 与终端用户直接调用。七组命令覆盖网页发布、豆包搜索、热点简报、抖音数据、小红书数据、公众号数据；`.codex/skills/` 存放面向 agent 的工作流，指导如何调用这些命令，其中对外发布的技能（`xhs-note-publish`、`douyin-script-extract`）还要满足 WorkBuddy 上架字段，见 `references/workbuddy技能规范.md`。`README.md` 是对外命令契约，本文档是开发与维护契约。
 
 ## 项目结构与模块组织
 
@@ -17,20 +17,58 @@ src/commands/
   content.js             content briefing
   douyin.js              douyin 的 7 个子命令
   xhs.js                 xhs hot-list | note-publish
+  wx.js                  wx article-data | history | rss | history-export
 src/api.test.js          全部自动化测试（api 映射 + 纯格式化/聚合函数）
-api_docs/<endpoint>.md   每个平台接口的请求/响应/计费契约
+api_docs/<endpoint>.md   每个平台接口的请求/响应/计费契约（`aiconductor-platform` 对应文件的整文件副本）
 references/              平台侧规范（workbuddy技能规范.md），不参与 CLI 运行；已 gitignore + npmignore，只在本机
 .codex/skills/<name>/    SKILL.md（路由与执行）+ references/（按条件加载）+ 可选 scripts/
 ```
 
 推导规则：命令组名与文件名**不一一对应**（`webpage` → `md_publish.js`，`search` → `web_search.js`），找实现先看 `bin/aiconductor-cli.js` 的注册处。命令文件只做四件事：解析选项、调用 `src/api.js`、格式化输出、`process.exit`；共享逻辑进 `src/lib/cli-utils.js`，HTTP 与鉴权细节不允许出现在命令文件里。
 
+## 配套项目：aiconductor-platform（接口契约的源头）
+
+本 CLI 只是 `aiconductor-platform` 里 78 个插件端点的薄封装。接口行为、返回字段、计费口径、上游第三方服务的坑都在那边；CLI 侧遇到「字段对不上 / 端点是 404 / 参数被拒」，先回那边查，不要在本仓库猜。
+
+- **路径**：`D:/Development/aiconductor-platform`（monorepo：`backend/` FastAPI 插件、`frontend/` Next.js 控制台，同机部署在平台那台 ECS 上）
+- **路由推导**：`backend/plugins/<name>.py` → `/api/<name>`；`backend/plugins/<group>/<name>.py` → `/api/<group>/<name>`。删文件即下线路由，没有注册表
+- **契约文档**：`backend/api_docs/<name>.md` 是唯一源头；`aiconductor-cli/api_docs/` 是它的**整文件副本**（例外：`china_stock_data.md` 只在 CLI 侧）。改契约先改 platform 再覆盖过来，不在 CLI 侧手改副本；已知 `xhs_note_publish.md` 两边已漂移，下次碰它时整文件对齐
+- **平台侧的开发与运维规则**（新增插件、计费三件套、180s 超时预算、nginx 60s、发版自检清单、已验证的坑）全在 `aiconductor-platform/AGENTS.md`，动接口前读那里，本文档不复述
+
+### 端点到命令的落点
+
+| 要做的事 | 改哪里 |
+|---|---|
+| 确认真实行为、字段、上游依赖 | `aiconductor-platform/backend/plugins/<name>.py` + `api_docs/<name>.md` |
+| 新增/修改接口契约 | platform 侧插件与 `api_docs`，再覆盖到 `aiconductor-cli/api_docs/` |
+| CLI 接入 | `src/api.js`（端点常量 + `httpPost` + `stripBilling`）→ `src/commands/<组>.js` → `bin/aiconductor-cli.js` 注册 |
+| 测试 | `src/api.test.js`，请求字段抄 `api_docs`，不抄实现 |
+| 对外文档与技能 | `README.md`、`.codex/skills/*/SKILL.md` |
+
+### 鉴权与计费的两侧分工
+
+- **鉴权**：platform 框架会把 `Authorization: Bearer <key>` 与 body/query 里的 `api_key` 都塞进 `args.input.api_key`，所以插件两种都收；CLI 只照 `api_docs` 写的那一种发，不要"统一"。
+- **计费**：单价、折扣、停用状态都在 platform 的 `api_services` 表（`service_code` 维度）。CLI 不写价格、不输出 `billing`；README 计费表里配置驱动的项写「以平台服务配置为准」，不写死数字。
+- **失败面**：`wx_*` 系列把业务失败放在 HTTP 200 的响应体里（`success:false` + `message`），CLI 在 `api.js` 用 `throwOnBusinessFailure` 转成 `api_error`（退出码 1、错误进 stderr），不要改成"成功退出 + 空 data"。
+
+### 联调限制（别假设能做）
+
+- `API_HOST` 是 `src/api.js` 里的常量 `plugin.aiconductor.fun`，**没有环境变量覆盖**：CLI 现在无法指向本地后端（本地起服务是 `cd aiconductor-platform/backend && uvicorn main:app --reload --port 8000`）。要做本地联调得先给 CLI 加 host 覆盖，未做之前不要在文档里声称支持。
+- 线上端点是否在线可直接查：`curl -s https://plugin.aiconductor.fun/api/plugins`（2026-11-04 实测 78 个）。判断"某端点不存在"以它为准，不以本文档的数字为准。
+- 返回不对时先用 `-f json` 看原始响应：能对上就是 CLI 映射/格式化的问题，对不上或报上游错误就是 platform 侧契约或第三方服务变了。
+
+### 公众号（wx_*）已接与未接
+
+已接 4 个（`wx` 组）：`wx_article_data` → `wx article-data`、`wx_history_articles` → `wx history`、`wx_rss_reader` → `wx rss`、`flow_wx_history_articles` → `wx history-export`。
+
+platform 侧还有、CLI 未接 8 个：`wx_access_token`、`wx_md_to_html`、`md_to_wxhtml`、`wx_image_upload`、`wx_draft_add`、`wx_draft_publish`、`users/wx_article_style_rewrite`、`wx_article_analysis_data_push`（最后一个只是扣费触发器，不返回数据）。接发布链路时注意 `wx_draft_add` 要先用 `wx_image_upload` 拿 `thumb_media_id`。
+
 ## 构建、测试与开发命令
 
 | 命令 | 用途 |
 |---|---|
 | `npm install` | 安装唯一依赖 `commander`（有 lock） |
-| `npm test` | `node --test`，18 个用例，离线打桩，不需要 API Key |
+| `npm test` | `node --test`，30 个用例，离线打桩，不需要 API Key |
 | `node bin/aiconductor-cli.js --help` | 不安装也能本地运行，核对命令面 |
 | `node bin/aiconductor-cli.js <组> <子命令> --help` | 核对某个命令的参数与默认值；CLI 契约以它为准 |
 | `npm pack --dry-run` | 确认发布内容：含 `src/**`（含测试）、`api_docs/`、`AGENTS.md`，不含 `.codex/` 与 `references/`（平台侧规范只在本机，已从 `.npmignore`/`.gitignore` 排掉） |
@@ -49,8 +87,9 @@ references/              平台侧规范（workbuddy技能规范.md），不参�
 
 ### 新增平台接口
 
-- 鉴权有两套并存写法，照 `api_docs` 与相邻实现选，不要"统一"：搜索、热榜、网页列表/删除、R2 上传、小红书发布、抖音视频搜索用 `Authorization: Bearer <key>`；发布类（`html_publish`、`md_to_html`）与多数抖音接口把 `api_key` 放进请求体。
-- 业务失败可能出现在 HTTP 200 的响应体里：`api.js` 内抛 `api_error`（搜索、热榜），或命令层用 `throwOnApiFailure`（网页列表/删除）。新接口选一种并补测试。
+- 先到 platform 侧读插件与 `api_docs`（见「配套项目：aiconductor-platform」），搞清上游依赖与超时预算，再动 CLI。
+- 鉴权有两套并存写法，照 `api_docs` 与相邻实现选，不要"统一"：搜索、热榜、网页列表/删除、R2 上传、小红书发布、抖音视频搜索、`wx_*` 全系用 `Authorization: Bearer <key>`；发布类（`html_publish`、`md_to_html`）与多数抖音接口把 `api_key` 放进请求体。
+- 业务失败可能出现在 HTTP 200 的响应体里：`api.js` 内抛 `api_error`（搜索、热榜，以及用 `throwOnBusinessFailure` 包一层的 `wx_*`），或命令层用 `throwOnApiFailure`（网页列表/删除）。新接口选一种并补测试。
 - 响应先过 `stripBilling`，`billing` 不进任何输出。
 
 ### 维护 skill
@@ -89,7 +128,8 @@ references/              平台侧规范（workbuddy技能规范.md），不参�
 ## 禁区
 
 - 不输出、不提交 `billing`、API Key、`.env` 内容、Base64 素材；密钥只走环境变量或命令行参数。
-- 不手改 `api_docs/` 去迁就实现——它是接口契约，契约变了才更新，并同时改测试。
+- 不手改 `api_docs/` 去迁就实现——它是接口契约（源头在 platform），契约变了才更新，并同时改测试。
+- 不把 platform 侧计费单价写进 CLI 代码、README 或测试断言（价格在 `api_services` 表）。
 - 不把 `hot_list_mixed` / `xhs_hot_list` 的明文 HTTP 顺手改成 HTTPS（测试锁定 `port 80`；确需改则测试、文档一起改并验证线上）。
 - 不在命令文件里重写 HTTP、鉴权或格式化，不在 `src/lib` 之外复制共享工具。
 - 不新增运行时依赖、不引入 ESM（当前只有 `commander`，用原生 `http/https`）。
@@ -101,12 +141,12 @@ references/              平台侧规范（workbuddy技能规范.md），不参�
 - 默认选型：CommonJS + `commander` + 原生 `http/https` + `node:test`；不引入 axios、node-fetch 或测试框架。
 - 目录落点：一组命令一个 `src/commands/<组>.js`；HTTP 接口进 `src/api.js`；纯函数（格式化、聚合）留在命令文件内并导出以便测试。
 - 直接做：读改代码、跑 `npm test`、跑 `--help`、`npm pack --dry-run`。
-- 先确认：`npm publish`/发版、`git push`、技能上架到 WorkBuddy、任何带 API Key 的真实计费调用（`search`、`douyin`、`xhs`、`content`）、`webpage delete`（不可逆，会失效公开链接）、批量改写 skills。
+- 先确认：`npm publish`/发版、`git push`、技能上架到 WorkBuddy、任何带 API Key 的真实计费调用（`search`、`douyin`、`xhs`、`content`、`wx`）、`webpage delete`（不可逆，会失效公开链接）、批量改写 skills。
 - 缺 API Key 时提示配置方式，不伪造、不复用示例输出。接任务先补齐背景、交付物、不做边界、约束、验收；"优化一下/完善一下"先翻译成可测量标准（哪条命令、哪个字段、什么退出码）。
 
 ## 最短验证闭环
 
-`npm test`（18 个用例，离线打桩，不需要 API Key）。改动涉及 `bin/`、`README.md`、skill 文字或新增命令时，再补一条人工核对：`node bin/aiconductor-cli.js <组> <子命令> --help`——`bin/` 的接线没有自动化测试覆盖。
+`npm test`（30 个用例，离线打桩，不需要 API Key）。改动涉及 `bin/`、`README.md`、skill 文字或新增命令时，再补一条人工核对：`node bin/aiconductor-cli.js <组> <子命令> --help`——`bin/` 的接线没有自动化测试覆盖。
 
 ## 任务执行与报告约定
 

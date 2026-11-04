@@ -19,6 +19,12 @@ const {
   linkToTextCommand,
 } = require("../src/commands/douyin");
 const { hotListCommand: xhsHotListCommand, notePublishCommand } = require("../src/commands/xhs");
+const {
+  articleDataCommand: wxArticleDataCommand,
+  historyCommand: wxHistoryCommand,
+  rssCommand: wxRssCommand,
+  historyExportCommand: wxHistoryExportCommand,
+} = require("../src/commands/wx");
 
 const program = new Command();
 
@@ -252,6 +258,50 @@ xhsCmd
   .option("--upload-valid-days <days>", "本地/Base64素材临时链接有效期：1或7天", "7")
   .option("-f, --format <format>", "输出格式：json 或 text", "json")
   .action((type, options) => { notePublishCommand(type, options); });
+
+// wx 子命令组（公众号数据）
+const wxCmd = program
+  .command("wx")
+  .description("微信公众号数据工具箱");
+
+wxCmd
+  .command("article-data")
+  .description("获取公众号文章互动数据（按次计费）")
+  .argument("<url>", "微信文章链接")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((url, options) => { wxArticleDataCommand(url, options); });
+
+wxCmd
+  .command("history")
+  .description("获取公众号历史文章列表（按成功翻页次数计费）")
+  .argument("[url]", "微信文章链接（用于定位公众号）")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--name <name>", "公众号名称或微信 ID（与 url 至少提供一个）")
+  .option("--max-pages <n>", "最大翻页数量", "1")
+  .option("--max-seconds <n>", "最长运行时间（秒），最大 170", "50")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((url, options) => { wxHistoryCommand(url, options); });
+
+wxCmd
+  .command("rss")
+  .description("批量读取公众号 RSS 文章（按公众号个数计费）")
+  .argument("<wx_names>", "公众号名称，多个用英文逗号隔开")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--recent-days <n>", "获取最近几天内的文章", "3")
+  .option("--max-items <n>", "每个公众号最多返回几篇", "5")
+  .option("--json-mode", "结果打包上传 OSS，只返回 data_url 文件链接")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((wxNames, options) => { wxRssCommand(wxNames, options); });
+
+wxCmd
+  .command("history-export")
+  .description("导出公众号历史文章 Excel/ZIP 下载链接（扣子工作流，不扣费，最长约 120 秒）")
+  .argument("<account_name>", "公众号名称")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--max-pages <n>", "最大翻页数量", "5")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((accountName, options) => { wxHistoryExportCommand(accountName, options); });
 
 // 未知命令处理
 program.on("command:*", () => {

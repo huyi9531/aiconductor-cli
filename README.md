@@ -353,6 +353,40 @@ aiconductor-cli xhs note-publish video \
 
 本地文件会在 CLI 内转换成 data URL，与 Base64 素材统一通过 JSON 接口免费上传为临时公开 URL，不使用 multipart。图片合计最多 18 张、单张最多 32MB；本地/Base64 视频受上传接口限制为 100MB，URL 视频上限为 200MB。
 
+### 微信公众号数据工具
+
+四个子命令，分别取单篇互动数据、公众号历史文章列表、批量 RSS 文章，以及导出历史文章 Excel/ZIP。
+
+```bash
+# 单篇文章互动数据（阅读 / 点赞 / 在看 等）
+aiconductor-cli wx article-data "https://mp.weixin.qq.com/s?__biz=xxxx&mid=xxxx&idx=1&sn=xxxx"
+
+# 公众号历史文章列表：用公众号名称或任意一篇文章链接定位
+aiconductor-cli wx history --name "人民日报" --max-pages 3 --max-seconds 50
+aiconductor-cli wx history "https://mp.weixin.qq.com/s?__biz=xxxx" -f text
+
+# 批量读取公众号 RSS：多个名称用英文逗号隔开
+aiconductor-cli wx rss "人民日报,央视新闻" --recent-days 3 --max-items 5
+# 结果打包上传 OSS，只拿文件链接（适合量大时落盘）
+aiconductor-cli wx rss "人民日报,央视新闻" --json-mode
+
+# 历史文章导出：返回 Excel 与 ZIP 下载链接
+aiconductor-cli wx history-export "人民日报" --max-pages 5
+```
+
+| 选项 | 适用命令 | 说明 | 默认值 |
+|------|----------|------|--------|
+| `--name <name>` | `history` | 公众号名称或微信 ID（与 `url` 至少提供一个） | 无 |
+| `--max-pages <n>` | `history` / `history-export` | 最大翻页数量 | 1 / 5 |
+| `--max-seconds <n>` | `history` | 最长运行时间（秒），上限 170 | 50 |
+| `--recent-days <n>` | `rss` | 获取最近几天内的文章 | 3 |
+| `--max-items <n>` | `rss` | 每个公众号最多返回几篇 | 5 |
+| `--json-mode` | `rss` | 结果打包上传 OSS，只返回 `data_url` | 关闭 |
+
+返回路径：`history` 的文章在 `data.data.data[]`（标题 `title`、时间 `post_time_str`、阅读 `read`、点赞 `zan`、链接 `url`）；`rss` 的结果在 `data.data[]`（每个公众号的 `success` / `message` / `data`，RSS 正文结构由上游解析服务决定）；`history-export` 的文件链接在 `data.article_xlsx` / `data.article_zip`。
+
+`rss` 要求公众号已在平台侧配置 RSS 订阅链接，未配置的公众号返回该项 `success=false` 但其余公众号照常返回。`history-export` 走扣子工作流，整体最长约 120 秒，CLI 不做本地进度输出。
+
 ### 通用选项
 
 所有命令支持：
@@ -375,6 +409,10 @@ aiconductor-cli xhs note-publish video \
 | 抖音链接转文字 | 0.01 元/次 + 0.0003 元/秒 |
 | 小红书热榜 | 以平台服务配置为准 |
 | 小红书扫码发布 | 0.05 元/次 |
+| 公众号文章互动数据 | 以平台服务配置为准（按次） |
+| 公众号历史文章列表 | 以平台服务配置为准（按成功翻页数） |
+| 公众号 RSS 批量读取 | 以平台服务配置为准（按公众号个数） |
+| 公众号历史文章导出 | 不扣费 |
 
 > 搜索/调用失败不扣费，仅成功时计费。
 

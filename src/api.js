@@ -19,8 +19,14 @@ const DOUYIN_USER_SEARCH_PATH = "/api/douyin_user_search";
 const DOUYIN_VIDEO_SEARCH_PATH = "/api/douyin_video_search";
 const DOUYIN_LINK_TO_TEXT_PATH = "/api/douyin_link_to_text_v2";
 const XHS_NOTE_PUBLISH_PATH = "/api/xhs_note_publish";
+const WX_ARTICLE_DATA_PATH = "/api/wx_article_data";
+const WX_HISTORY_ARTICLES_PATH = "/api/wx_history_articles";
+const WX_RSS_READER_PATH = "/api/wx_rss_reader";
+const FLOW_WX_HISTORY_ARTICLES_PATH = "/api/flow_wx_history_articles";
 const R2_UPLOADER_PATH = "/api/r2_uploader";
 const MAX_R2_FILE_SIZE = 100 * 1024 * 1024;
+// wx_history_articles 的 max_seconds 平台上限（预留 10s 给平台 180s 兜底）
+const WX_HISTORY_MAX_SECONDS = 170;
 
 /**
  * 解析 API Key，三级优先级：命令行参数 > 系统环境变量 > .env 文件
@@ -144,6 +150,32 @@ function validatePositiveInt(value, name, max) {
     throw Object.assign(new Error(`${name} 须为 ${range} 的整数，收到: ${value}`), { type: "validation_error" });
   }
   return n;
+}
+
+/**
+ * 校验非空文本参数，去掉首尾空白
+ * @param {*} value
+ * @param {string} name
+ * @returns {string}
+ */
+function requireText(value, name) {
+  const text = value === undefined || value === null ? "" : String(value).trim();
+  if (!text) {
+    throw Object.assign(new Error(`缺少 ${name} 参数`), { type: "validation_error" });
+  }
+  return text;
+}
+
+/**
+ * 把 HTTP 200 但 success=false 的业务失败转成 api_error（错误分类见 AGENTS.md）
+ * @param {object} resp
+ * @returns {object}
+ */
+function throwOnBusinessFailure(resp) {
+  if (resp && resp.success === false) {
+    throw Object.assign(new Error(resp.message || "接口返回失败"), { type: "api_error" });
+  }
+  return resp;
 }
 
 function contentTypeForFilename(filename) {
@@ -566,6 +598,98 @@ async function douyinLinkToText(apiKey, videoUrl) {
 }
 
 /**
+ * 获取微信公众号文章互动数据（按次计费）
+ * @param {string} apiKey
+ * @param {string} url 微信文章链接
+ * @returns {Promise<object>}
+ */
+async function wxArticleData(apiKey, url) {
+  const resp = await httpPost(API_HOST, WX_ARTICLE_DATA_PATH, {
+    url: requireText(url, "url（微信文章链接）"),
+  }, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+  return throwOnBusinessFailure(stripBilling(resp));
+}
+
+/**
+ * 获取微信公众号历史文章列表（按成功翻页次数计费）
+ * @param {string} apiKey
+ * @param {{ url?: string, name?: string, maxPages?: number|string, maxSeconds?: number|string }} params
+ * @returns {Promise<object>}
+ */
+async function wxHistoryArticles(apiKey, params = {}) {
+  const body = {};
+  const url = params.url === undefined || params.url === null ? "" : String(params.url).trim();
+  const name = params.name === undefined || params.name === null ? "" : String(params.name).trim();
+  if (!url && !name) {
+    throw Object.assign(
+      new Error("url 与 name 至少提供一个（公众号名称，或该公众号任意一篇文章链接）"),
+      { type: "validation_error" }
+    );
+  }
+  if (url) body.url = url;
+  if (name) body.name = name;
+  if (params.maxPages !== undefined && params.maxPages !== null) {
+    body.max_pages = validatePositiveInt(params.maxPages, "max_pages");
+  }
+  if (params.maxSeconds !== undefined && params.maxSeconds !== null) {
+    body.max_seconds = validatePositiveInt(params.maxSeconds, "max_seconds", WX_HISTORY_MAX_SECONDS);
+  }
+
+  const resp = await httpPost(API_HOST, WX_HISTORY_ARTICLES_PATH, body, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+  return throwOnBusinessFailure(stripBilling(resp));
+}
+
+/**
+ * 批量读取微信公众号 RSS 文章（按公众号个数计费）
+ * @param {string} apiKey
+ * @param {{ wxNames: string|string[], recentDays?: number|string, maxItems?: number|string, useJsonMode?: boolean }} params
+ * @returns {Promise<object>}
+ */
+async function wxRssReader(apiKey, params = {}) {
+  const rawNames = Array.isArray(params.wxNames) ? params.wxNames : String(params.wxNames || "").split(",");
+  const names = rawNames.map((item) => String(item).trim()).filter(Boolean);
+  if (names.length === 0) {
+    throw Object.assign(new Error("wx_names 至少提供一个公众号名称"), { type: "validation_error" });
+  }
+
+  const body = { wx_names: names.join(",") };
+  if (params.recentDays !== undefined && params.recentDays !== null) {
+    body.recent_days = validatePositiveInt(params.recentDays, "recent_days");
+  }
+  if (params.maxItems !== undefined && params.maxItems !== null) {
+    body.max_items = validatePositiveInt(params.maxItems, "max_items");
+  }
+  if (params.useJsonMode) body.use_json_mode = true;
+
+  const resp = await httpPost(API_HOST, WX_RSS_READER_PATH, body, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+  return throwOnBusinessFailure(stripBilling(resp));
+}
+
+/**
+ * 通过扣子工作流导出公众号历史文章（不扣费，返回 Excel/ZIP 下载链接）
+ * @param {string} apiKey
+ * @param {{ accountName: string, maxPages?: number|string }} params
+ * @returns {Promise<object>}
+ */
+async function flowWxHistoryArticles(apiKey, params = {}) {
+  const body = { account_name: requireText(params.accountName, "account_name（公众号名称）") };
+  if (params.maxPages !== undefined && params.maxPages !== null) {
+    body.max_pages = validatePositiveInt(params.maxPages, "max_pages");
+  }
+
+  const resp = await httpPost(API_HOST, FLOW_WX_HISTORY_ARTICLES_PATH, body, {
+    Authorization: `Bearer ${apiKey}`,
+  });
+  return throwOnBusinessFailure(stripBilling(resp));
+}
+
+/**
  * 小红书笔记发布 — 生成扫码发布 H5 页面与二维码
  * @param {string} apiKey
  * @param {{ type: string, title?: string, content?: string, images?: string[], video?: string, cover?: string }} params
@@ -603,4 +727,8 @@ module.exports = {
   douyinLinkToText,
   r2Upload,
   xhsNotePublish,
+  wxArticleData,
+  wxHistoryArticles,
+  wxRssReader,
+  flowWxHistoryArticles,
 };

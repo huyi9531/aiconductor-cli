@@ -4,8 +4,7 @@ const http = require("node:http");
 const https = require("node:https");
 const test = require("node:test");
 
-const { hotList, webSearch, xhsHotList } = require("./api");
-const {
+const { hotList, webSearch, xhsHotList } = require("./api");const {
   buildBriefingResult,
   formatHotListText,
   parseLimit,
@@ -14,6 +13,18 @@ const {
 } = require("./commands/content");
 const { formatSearchText } = require("./commands/web_search");
 const { hotListTextFormatter, notePublishTextFormatter } = require("./commands/xhs");
+const {
+  wxArticleData,
+  wxHistoryArticles,
+  wxRssReader,
+  flowWxHistoryArticles,
+} = require("./api");
+const {
+  formatArticleDataText,
+  formatHistoryText,
+  formatRssText,
+  formatHistoryExportText,
+} = require("./commands/wx");
 
 function captureRequest(callback, responseBody = { success: true, billing: {} }, transport = https) {
   const originalRequest = transport.request;
@@ -365,4 +376,183 @@ test("parseLimit accepts the documented range", () => {
   assert.throws(() => parseLimit("0"), { type: "validation_error" });
   assert.throws(() => parseLimit("31"), { type: "validation_error" });
   assert.throws(() => parseLimit("invalid"), { type: "validation_error" });
+});
+
+test("wxArticleData posts the article url with a Bearer header and strips billing", async () => {
+  const request = await captureRequest(() => wxArticleData("test-key", " https://mp.weixin.qq.com/s?__biz=M1 "), {
+    success: true,
+    message: "微信公众号文章互动数据获取成功。",
+    billing: { service_fee: 0.02, transaction_ids: [7] },
+    data: { read_num: 1200, zan_num: 8 },
+  });
+
+  assert.equal(request.options.path, "/api/wx_article_data");
+  assert.equal(request.options.port, 443);
+  assert.equal(request.options.headers.Authorization, "Bearer test-key");
+  assert.deepEqual(request.body, { url: "https://mp.weixin.qq.com/s?__biz=M1" });
+  assert.equal(request.result.billing, undefined);
+  assert.equal(request.result.data.read_num, 1200);
+});
+
+test("wxArticleData rejects a blank url without calling the endpoint", async () => {
+  await assert.rejects(() => wxArticleData("test-key", "  "), { type: "validation_error" });
+});
+
+test("wxHistoryArticles maps pagination fields from the api docs", async () => {
+  const request = await captureRequest(() => wxHistoryArticles("test-key", {
+    name: " 人民日报 ",
+    maxPages: "3",
+    maxSeconds: "50",
+  }), { success: true, data: { data: [] } });
+
+  assert.equal(request.options.path, "/api/wx_history_articles");
+  assert.equal(request.options.headers.Authorization, "Bearer test-key");
+  assert.deepEqual(request.body, { name: "人民日报", max_pages: 3, max_seconds: 50 });
+});
+
+test("wxHistoryArticles accepts a url instead of a name and rejects missing locators", async () => {
+  const request = await captureRequest(
+    () => wxHistoryArticles("test-key", { url: "https://mp.weixin.qq.com/s/abc" }),
+    { success: true, data: { data: [] } }
+  );
+  assert.deepEqual(request.body, { url: "https://mp.weixin.qq.com/s/abc" });
+
+  await assert.rejects(() => wxHistoryArticles("test-key", {}), { type: "validation_error" });
+  await assert.rejects(
+    () => wxHistoryArticles("test-key", { name: "人民日报", maxSeconds: 171 }),
+    { type: "validation_error" }
+  );
+});
+
+test("wxRssReader joins account names and forwards the RSS options", async () => {
+  const request = await captureRequest(() => wxRssReader("test-key", {
+    wxNames: " 人民日报, 央视新闻 ",
+    recentDays: "3",
+    maxItems: "5",
+    useJsonMode: true,
+  }), { success: true, data: [], data_url: "https://oss.example.com/result.json" });
+
+  assert.equal(request.options.path, "/api/wx_rss_reader");
+  assert.equal(request.options.headers.Authorization, "Bearer test-key");
+  assert.deepEqual(request.body, {
+    wx_names: "人民日报,央视新闻",
+    recent_days: 3,
+    max_items: 5,
+    use_json_mode: true,
+  });
+});
+
+test("wxRssReader rejects empty names and keeps use_json_mode off by default", async () => {
+  await assert.rejects(() => wxRssReader("test-key", { wxNames: " , " }), { type: "validation_error" });
+
+  const request = await captureRequest(
+    () => wxRssReader("test-key", { wxNames: ["人民日报"] }),
+    { success: true, data: [] }
+  );
+  assert.deepEqual(request.body, { wx_names: "人民日报" });
+});
+
+test("flowWxHistoryArticles posts account_name and max_pages", async () => {
+  const request = await captureRequest(() => flowWxHistoryArticles("test-key", {
+    accountName: "人民日报",
+    maxPages: 5,
+  }), { success: true, article_xlsx: "https://files.example.com/a.xlsx", article_zip: "" });
+
+  assert.equal(request.options.path, "/api/flow_wx_history_articles");
+  assert.equal(request.options.headers.Authorization, "Bearer test-key");
+  assert.deepEqual(request.body, { account_name: "人民日报", max_pages: 5 });
+  assert.equal(request.result.article_xlsx, "https://files.example.com/a.xlsx");
+});
+
+test("wx endpoints turn HTTP 200 business failures into api_error", async () => {
+  const failure = { success: false, message: "账户余额不足，当前余额：0.01，需要：0.02", billing: {} };
+
+  await assert.rejects(
+    () => captureRequest(() => wxArticleData("test-key", "https://mp.weixin.qq.com/s/abc"), failure),
+    (err) => err.type === "api_error" && err.message === failure.message
+  );
+  await assert.rejects(
+    () => captureRequest(() => flowWxHistoryArticles("test-key", { accountName: "人民日报" }), failure),
+    { type: "api_error" }
+  );
+});
+
+test("wx history formatter lists documented article fields", () => {
+  const text = formatHistoryText({
+    data: {
+      mp_nickname: "人民日报",
+      mp_wxid: "rmrb",
+      now_page: 1,
+      data: [{
+        title: "今日要闻",
+        post_time_str: "2026-08-27 16:32:59",
+        read: 12345,
+        zan: 67,
+        original: 1,
+        digest: "摘要内容",
+        url: "https://mp.weixin.qq.com/s/abc",
+      }],
+    },
+  });
+  assert.match(text, /公众号: 人民日报（rmrb）/);
+  assert.match(text, /篇数: +1/);
+  assert.match(text, /\[1\] 今日要闻/);
+  assert.match(text, /时间: 2026-08-27 16:32:59/);
+  assert.match(text, /阅读 12345 \| 点赞 67 \| 原创/);
+  assert.match(text, /URL: +https:\/\/mp\.weixin\.qq\.com\/s\/abc/);
+});
+
+test("wx rss formatter keeps failing accounts and finds nested article lists", () => {
+  const text = formatRssText({
+    message: "批量处理完成: 成功 1 个，失败 1 个",
+    data: [
+      {
+        wx_name: "人民日报",
+        success: true,
+        message: "RSS解析成功",
+        data: { result: { items: [{ title: "要闻", link: "https://example.com/a", pubDate: "2026-08-27" }] } },
+      },
+      { wx_name: "未收录号", success: false, message: "未找到公众号 '未收录号' 的RSS订阅链接" },
+    ],
+  });
+  assert.match(text, /公众号 RSS 批量读取（2 个）/);
+  assert.match(text, /\[1\] 人民日报 ✓ RSS解析成功/);
+  assert.match(text, /文章: 1 篇/);
+  assert.match(text, /- 要闻（2026-08-27）/);
+  assert.match(text, /\[2\] 未收录号 ✗ 未找到公众号/);
+});
+
+test("wx rss formatter tolerates unknown structures and JSON mode", () => {
+  const unknown = formatRssText({
+    data: [{ wx_name: "人民日报", success: true, message: "RSS解析成功", data: { unexpected: { foo: "bar" } } }],
+  });
+  assert.match(unknown, /未识别的上游结构/);
+
+  const jsonMode = formatRssText({ data_url: "https://oss.example.com/r.json", data: null });
+  assert.match(jsonMode, /数据文件: https:\/\/oss\.example\.com\/r\.json/);
+  assert.match(jsonMode, /JSON 模式/);
+});
+
+test("wx article-data and history-export formatters surface raw fields and links", () => {
+  const articleText = formatArticleDataText({
+    message: "微信公众号文章互动数据获取成功。",
+    data: { read_num: 1200, zan_num: 8, share_num: 3 },
+  });
+  assert.match(articleText, /公众号文章互动数据/);
+  assert.match(articleText, /read_num: 1200/);
+  assert.match(articleText, /zan_num: 8/);
+
+  const emptyText = formatArticleDataText({ data: {} });
+  assert.match(emptyText, /上游未返回字段/);
+
+  const exportText = formatHistoryExportText({
+    message: "处理完成",
+    article_xlsx: "https://files.example.com/a.xlsx",
+    article_zip: "https://files.example.com/a.zip",
+  });
+  assert.match(exportText, /Excel: https:\/\/files\.example\.com\/a\.xlsx/);
+  assert.match(exportText, /ZIP: +https:\/\/files\.example\.com\/a\.zip/);
+
+  const noFileText = formatHistoryExportText({ message: "处理完成" });
+  assert.match(noFileText, /未返回文件链接/);
 });
