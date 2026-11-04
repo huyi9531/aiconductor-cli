@@ -16,14 +16,10 @@ const { hotListTextFormatter, notePublishTextFormatter } = require("./commands/x
 const {
   wxArticleData,
   wxHistoryArticles,
-  wxRssReader,
-  flowWxHistoryArticles,
 } = require("./api");
 const {
   formatArticleDataText,
   formatHistoryText,
-  formatRssText,
-  formatHistoryExportText,
 } = require("./commands/wx");
 
 function captureRequest(callback, responseBody = { success: true, billing: {} }, transport = https) {
@@ -424,46 +420,6 @@ test("wxHistoryArticles accepts a url instead of a name and rejects missing loca
   );
 });
 
-test("wxRssReader joins account names and forwards the RSS options", async () => {
-  const request = await captureRequest(() => wxRssReader("test-key", {
-    wxNames: " 人民日报, 央视新闻 ",
-    recentDays: "3",
-    maxItems: "5",
-    useJsonMode: true,
-  }), { success: true, data: [], data_url: "https://oss.example.com/result.json" });
-
-  assert.equal(request.options.path, "/api/wx_rss_reader");
-  assert.equal(request.options.headers.Authorization, "Bearer test-key");
-  assert.deepEqual(request.body, {
-    wx_names: "人民日报,央视新闻",
-    recent_days: 3,
-    max_items: 5,
-    use_json_mode: true,
-  });
-});
-
-test("wxRssReader rejects empty names and keeps use_json_mode off by default", async () => {
-  await assert.rejects(() => wxRssReader("test-key", { wxNames: " , " }), { type: "validation_error" });
-
-  const request = await captureRequest(
-    () => wxRssReader("test-key", { wxNames: ["人民日报"] }),
-    { success: true, data: [] }
-  );
-  assert.deepEqual(request.body, { wx_names: "人民日报" });
-});
-
-test("flowWxHistoryArticles posts account_name and max_pages", async () => {
-  const request = await captureRequest(() => flowWxHistoryArticles("test-key", {
-    accountName: "人民日报",
-    maxPages: 5,
-  }), { success: true, article_xlsx: "https://files.example.com/a.xlsx", article_zip: "" });
-
-  assert.equal(request.options.path, "/api/flow_wx_history_articles");
-  assert.equal(request.options.headers.Authorization, "Bearer test-key");
-  assert.deepEqual(request.body, { account_name: "人民日报", max_pages: 5 });
-  assert.equal(request.result.article_xlsx, "https://files.example.com/a.xlsx");
-});
-
 test("wx endpoints turn HTTP 200 business failures into api_error", async () => {
   const failure = { success: false, message: "账户余额不足，当前余额：0.01，需要：0.02", billing: {} };
 
@@ -472,7 +428,7 @@ test("wx endpoints turn HTTP 200 business failures into api_error", async () => 
     (err) => err.type === "api_error" && err.message === failure.message
   );
   await assert.rejects(
-    () => captureRequest(() => flowWxHistoryArticles("test-key", { accountName: "人民日报" }), failure),
+    () => captureRequest(() => wxHistoryArticles("test-key", { name: "人民日报" }), failure),
     { type: "api_error" }
   );
 });
@@ -502,38 +458,7 @@ test("wx history formatter lists documented article fields", () => {
   assert.match(text, /URL: +https:\/\/mp\.weixin\.qq\.com\/s\/abc/);
 });
 
-test("wx rss formatter keeps failing accounts and finds nested article lists", () => {
-  const text = formatRssText({
-    message: "批量处理完成: 成功 1 个，失败 1 个",
-    data: [
-      {
-        wx_name: "人民日报",
-        success: true,
-        message: "RSS解析成功",
-        data: { result: { items: [{ title: "要闻", link: "https://example.com/a", pubDate: "2026-08-27" }] } },
-      },
-      { wx_name: "未收录号", success: false, message: "未找到公众号 '未收录号' 的RSS订阅链接" },
-    ],
-  });
-  assert.match(text, /公众号 RSS 批量读取（2 个）/);
-  assert.match(text, /\[1\] 人民日报 ✓ RSS解析成功/);
-  assert.match(text, /文章: 1 篇/);
-  assert.match(text, /- 要闻（2026-08-27）/);
-  assert.match(text, /\[2\] 未收录号 ✗ 未找到公众号/);
-});
-
-test("wx rss formatter tolerates unknown structures and JSON mode", () => {
-  const unknown = formatRssText({
-    data: [{ wx_name: "人民日报", success: true, message: "RSS解析成功", data: { unexpected: { foo: "bar" } } }],
-  });
-  assert.match(unknown, /未识别的上游结构/);
-
-  const jsonMode = formatRssText({ data_url: "https://oss.example.com/r.json", data: null });
-  assert.match(jsonMode, /数据文件: https:\/\/oss\.example\.com\/r\.json/);
-  assert.match(jsonMode, /JSON 模式/);
-});
-
-test("wx article-data and history-export formatters surface raw fields and links", () => {
+test("wx article-data formatter surfaces raw upstream fields", () => {
   const articleText = formatArticleDataText({
     message: "微信公众号文章互动数据获取成功。",
     data: { read_num: 1200, zan_num: 8, share_num: 3 },
@@ -544,15 +469,4 @@ test("wx article-data and history-export formatters surface raw fields and links
 
   const emptyText = formatArticleDataText({ data: {} });
   assert.match(emptyText, /上游未返回字段/);
-
-  const exportText = formatHistoryExportText({
-    message: "处理完成",
-    article_xlsx: "https://files.example.com/a.xlsx",
-    article_zip: "https://files.example.com/a.zip",
-  });
-  assert.match(exportText, /Excel: https:\/\/files\.example\.com\/a\.xlsx/);
-  assert.match(exportText, /ZIP: +https:\/\/files\.example\.com\/a\.zip/);
-
-  const noFileText = formatHistoryExportText({ message: "处理完成" });
-  assert.match(noFileText, /未返回文件链接/);
 });

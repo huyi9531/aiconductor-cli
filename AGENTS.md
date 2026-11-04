@@ -17,7 +17,7 @@ src/commands/
   content.js             content briefing
   douyin.js              douyin 的 7 个子命令
   xhs.js                 xhs hot-list | note-publish
-  wx.js                  wx article-data | history | rss | history-export
+  wx.js                  wx article-data | history
 src/api.test.js          全部自动化测试（api 映射 + 纯格式化/聚合函数）
 api_docs/<endpoint>.md   每个平台接口的请求/响应/计费契约（`aiconductor-platform` 对应文件的整文件副本）
 references/              平台侧规范（workbuddy技能规范.md），不参与 CLI 运行；已 gitignore + npmignore，只在本机
@@ -59,16 +59,16 @@ references/              平台侧规范（workbuddy技能规范.md），不参�
 
 ### 公众号（wx_*）已接与未接
 
-已接 4 个（`wx` 组）：`wx_article_data` → `wx article-data`、`wx_history_articles` → `wx history`、`wx_rss_reader` → `wx rss`、`flow_wx_history_articles` → `wx history-export`。
+已接 2 个（`wx` 组）：`wx_article_data` → `wx article-data`、`wx_history_articles` → `wx history`。
 
-platform 侧还有、CLI 未接 8 个：`wx_access_token`、`wx_md_to_html`、`md_to_wxhtml`、`wx_image_upload`、`wx_draft_add`、`wx_draft_publish`、`users/wx_article_style_rewrite`、`wx_article_analysis_data_push`（最后一个只是扣费触发器，不返回数据）。接发布链路时注意 `wx_draft_add` 要先用 `wx_image_upload` 拿 `thumb_media_id`。
+platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_articles`、`wx_access_token`、`wx_md_to_html`、`md_to_wxhtml`、`wx_image_upload`、`wx_draft_add`、`wx_draft_publish`、`users/wx_article_style_rewrite`、`wx_article_analysis_data_push`（最后一个只是扣费触发器，不返回数据）。`wx_rss_reader` 与 `flow_wx_history_articles` **用户明确不要**（2026-11-04），不要再当成待补项；接发布链路时注意 `wx_draft_add` 要先用 `wx_image_upload` 拿 `thumb_media_id`。
 
 ## 构建、测试与开发命令
 
 | 命令 | 用途 |
 |---|---|
 | `npm install` | 安装唯一依赖 `commander`（有 lock） |
-| `npm test` | `node --test`，30 个用例，离线打桩，不需要 API Key |
+| `npm test` | `node --test`，25 个用例，离线打桩，不需要 API Key |
 | `node bin/aiconductor-cli.js --help` | 不安装也能本地运行，核对命令面 |
 | `node bin/aiconductor-cli.js <组> <子命令> --help` | 核对某个命令的参数与默认值；CLI 契约以它为准 |
 | `npm pack --dry-run` | 确认发布内容：含 `src/**`（含测试）、`api_docs/`、`AGENTS.md`，不含 `.codex/` 与 `references/`（平台侧规范只在本机，已从 `.npmignore`/`.gitignore` 排掉） |
@@ -146,7 +146,7 @@ platform 侧还有、CLI 未接 8 个：`wx_access_token`、`wx_md_to_html`、`m
 
 ## 最短验证闭环
 
-`npm test`（30 个用例，离线打桩，不需要 API Key）。改动涉及 `bin/`、`README.md`、skill 文字或新增命令时，再补一条人工核对：`node bin/aiconductor-cli.js <组> <子命令> --help`——`bin/` 的接线没有自动化测试覆盖。
+`npm test`（25 个用例，离线打桩，不需要 API Key）。改动涉及 `bin/`、`README.md`、skill 文字或新增命令时，再补一条人工核对：`node bin/aiconductor-cli.js <组> <子命令> --help`——`bin/` 的接线没有自动化测试覆盖。
 
 ## 任务执行与报告约定
 

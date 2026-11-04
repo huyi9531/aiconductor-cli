@@ -22,8 +22,6 @@ const { hotListCommand: xhsHotListCommand, notePublishCommand } = require("../sr
 const {
   articleDataCommand: wxArticleDataCommand,
   historyCommand: wxHistoryCommand,
-  rssCommand: wxRssCommand,
-  historyExportCommand: wxHistoryExportCommand,
 } = require("../src/commands/wx");
 
 const program = new Command();
@@ -282,26 +280,6 @@ wxCmd
   .option("--max-seconds <n>", "最长运行时间（秒），最大 170", "50")
   .option("-f, --format <format>", "输出格式：json 或 text", "json")
   .action((url, options) => { wxHistoryCommand(url, options); });
-
-wxCmd
-  .command("rss")
-  .description("批量读取公众号 RSS 文章（按公众号个数计费）")
-  .argument("<wx_names>", "公众号名称，多个用英文逗号隔开")
-  .option("-k, --api-key <key>", "AIConductor API Key")
-  .option("--recent-days <n>", "获取最近几天内的文章", "3")
-  .option("--max-items <n>", "每个公众号最多返回几篇", "5")
-  .option("--json-mode", "结果打包上传 OSS，只返回 data_url 文件链接")
-  .option("-f, --format <format>", "输出格式：json 或 text", "json")
-  .action((wxNames, options) => { wxRssCommand(wxNames, options); });
-
-wxCmd
-  .command("history-export")
-  .description("导出公众号历史文章 Excel/ZIP 下载链接（扣子工作流，不扣费，最长约 120 秒）")
-  .argument("<account_name>", "公众号名称")
-  .option("-k, --api-key <key>", "AIConductor API Key")
-  .option("--max-pages <n>", "最大翻页数量", "5")
-  .option("-f, --format <format>", "输出格式：json 或 text", "json")
-  .action((accountName, options) => { wxHistoryExportCommand(accountName, options); });
 
 // 未知命令处理
 program.on("command:*", () => {
