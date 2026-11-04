@@ -1,6 +1,6 @@
 ---
 name: douyin-script-extract
-version: 1.0.0
+version: 1.0.1
 display_name: 抖音文案提取
 display_name_en: Douyin Script Extract
 description: 抖音文案提取 — 把抖音视频链接（短链、分享口令、douyin.com/video/<id>）转成口播原文。当用户说"提取抖音文案""扒一下这条视频的文案""口播转文字""这条视频说了什么""把分享链接转成文字稿""对标这条视频的文案"时使用；即使用户只甩来一条抖音分享口令或 v.douyin.com 短链、没提"文案"二字，只要意图是要文字稿也应使用。只负责链接→口播原文；下载视频、评论/账号/搜索数据、文案改写与仿写都不在此技能范围。
