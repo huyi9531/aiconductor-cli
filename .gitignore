@@ -4,6 +4,6 @@ node_modules/
 .DS_Store
 .agents/
 
-# 平台侧规范：只在本机留存，不进 npm 包、不入库
-references/
+# 平台侧规范：只在本机留存，不进 npm 包、不入库（只匹配仓库根目录，否则会误伤 .codex/skills/*/references/）
+/references/
 .codex/skills/*.zip
