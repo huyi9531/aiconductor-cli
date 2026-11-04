@@ -1,12 +1,20 @@
 ---
 name: xhs-note-publish
-version: 1.1.0
+version: 1.1.1
 display_name: 小红书扫码发布
 display_name_en: Xiaohongshu Note Publish
 description: 小红书扫码发布 — 生成小红书图文/视频笔记的扫码发布页与二维码。当用户想要发布小红书笔记、生成小红书发布页、创建小红书扫码发布链接、把图片/视频做成可发布的笔记页面时应使用此 Skill。触发词包括：小红书发布、小红书笔记、小红书扫码、xhs发布、xhs note、red note publish、发小红书、生成小红书发布页、小红书图文发布、小红书视频发布。
 description_zh: 小红书扫码发布 — 生成小红书图文/视频笔记的扫码发布页与二维码。支持标题、正文、图片（最多18张）与视频素材，用户扫码后可在手机浏览器一键唤起小红书 App 发布。
 description_en: Xiaohongshu note publishing via QR code — generate an H5 publishing page and QR code for image/text or video notes. Supports title, content, images (up to 18) and video assets; users scan the code and open the Xiaohongshu app to publish in one tap.
 author: "AI指挥家"
+examples_zh:
+  - "把这几张样片做成小红书图文笔记，标题「秋冬通勤三层穿搭」，正文写清配色思路"
+  - "这段咖啡冲煮视频发小红书，标题「手冲入门第一杯」，封面我另给一张图"
+  - "素材在我电脑里的探店文件夹里，帮我挑 9 张发一篇图文笔记，正文突出性价比"
+examples_en:
+  - "Turn these outfit photos into a Xiaohongshu image note titled 'Three-layer commuting looks' and explain the color pairing in the body"
+  - "Post this pour-over video to Xiaohongshu as 'My first V60' — I'll send the cover image separately"
+  - "The photos are in a folder on my desktop — pick nine of them and publish an image note that plays up value"
 ---
 
 ## 概述
