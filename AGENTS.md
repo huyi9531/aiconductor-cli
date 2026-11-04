@@ -121,6 +121,7 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 - **`webpage publish` 分流**：按扩展名或内容特征判定 `md`/`html`（`--type` 可强制）。html 分支直接打 `html_publish`，md 分支打 `md_to_html` 并支持 `--copy-button`；两者是不同端点。
 - **小红书发布是两段式**：本地文件或 Base64 先经 `r2Upload` 换成临时公开 URL（`valid_days` 仅 1 或 7，默认 7；图片单张 ≤ 32MB，本地视频 ≤ 100MB），再调用计费接口生成 H5 页与二维码。Base64 参数支持 `@文件路径`。
 - **热点简报是部分成功语义**：热榜与小红书热榜并行请求，任一成功即返回 `success:true`，失败写入 `data.failed_sources` / `data.failed_services`；仅两个服务都失败才退出 1。不要简化成"全有或全无"。
+- **`wx` 组线上真实字段**（2026-11-04 实测调用）：`wx_article_data` 返回 `read` / `zan` / `looking`（在看）/ `share_num` / `collect_num` / `comment_count`；`wx_history_articles` 用 `--name` 定位时业务层只有 `mp_nickname` 与 `mp_ghid`——**`api_docs` 写的 `mp_wxid` / `head_img` 实际不返回**；文章项字段与文档一致（`post_time_str` / `read` / `zan` / `original` / `url` / `digest`）。改 formatter 按实测字段，不要按文档新增字段。
 - **抖音字段单位不统一**：`video-search` 的 `video.duration` 是**毫秒**，`user-videos` 的 `duration` 是 `"MM:SS"` 字符串——同名不同单位，跨端点复用代码必翻车。
 - **抖音时间戳是北京时间编码**：`create_time` 按 UTC 渲染出来就是北京时间，**不要再 +8 小时**（2026-10-28 实测 `video-search`/`video-comments`/`user-videos` 三处：+8 会让半小时前发的视频落到 7 小时后）。`user-videos` 另带 `create_time_formatted`，同口径。
 - **密钥解析**：`-k` > `AICONDUCTOR_API_KEY` > **当前工作目录**的 `.env`（不向上查找）；缺失时 `resolveKeyOrExit` 打印错误并退出 1。

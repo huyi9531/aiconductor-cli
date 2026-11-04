@@ -372,7 +372,7 @@ aiconductor-cli wx history "https://mp.weixin.qq.com/s?__biz=xxxx" -f text
 | `--max-pages <n>` | `history` | 最大翻页数量 | 1 |
 | `--max-seconds <n>` | `history` | 最长运行时间（秒），上限 170 | 50 |
 
-返回路径：`article-data` 的字段在上游自带的键上（`data.data.*`，无固定字段名，text 模式直接打印键值）；`history` 的文章在 `data.data.data[]`（标题 `title`、时间 `post_time_str`、阅读 `read`、点赞 `zan`、链接 `url`）。
+返回路径：`article-data` 的互动数据在 `data.data`（`read` / `zan` / `looking` / `share_num` / `collect_num` / `comment_count`，text 模式渲染成阅读/点赞/在看/分享/收藏/评论，未知字段原样输出）；`history` 的文章在 `data.data.data[]`（标题 `title`、时间 `post_time_str`、阅读 `read`、点赞 `zan`、链接 `url`）。
 
 ### 通用选项
 

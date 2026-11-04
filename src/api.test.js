@@ -437,7 +437,7 @@ test("wx history formatter lists documented article fields", () => {
   const text = formatHistoryText({
     data: {
       mp_nickname: "人民日报",
-      mp_wxid: "rmrb",
+      mp_ghid: "gh_363b924965e9",
       now_page: 1,
       data: [{
         title: "今日要闻",
@@ -450,7 +450,7 @@ test("wx history formatter lists documented article fields", () => {
       }],
     },
   });
-  assert.match(text, /公众号: 人民日报（rmrb）/);
+  assert.match(text, /公众号: 人民日报（gh_363b924965e9）/);
   assert.match(text, /篇数: +1/);
   assert.match(text, /\[1\] 今日要闻/);
   assert.match(text, /时间: 2026-08-27 16:32:59/);
@@ -458,14 +458,23 @@ test("wx history formatter lists documented article fields", () => {
   assert.match(text, /URL: +https:\/\/mp\.weixin\.qq\.com\/s\/abc/);
 });
 
-test("wx article-data formatter surfaces raw upstream fields", () => {
+test("wx article-data formatter labels the fields the live endpoint returns", () => {
+  // 字段取自 2026-11-04 线上真实响应
   const articleText = formatArticleDataText({
     message: "微信公众号文章互动数据获取成功。",
-    data: { read_num: 1200, zan_num: 8, share_num: 3 },
+    data: { read: 100001, zan: 5685, looking: 3202, share_num: 21013, collect_num: 3129, comment_count: 12 },
   });
-  assert.match(articleText, /公众号文章互动数据/);
-  assert.match(articleText, /read_num: 1200/);
-  assert.match(articleText, /zan_num: 8/);
+  assert.match(articleText, /阅读: 100001/);
+  assert.match(articleText, /点赞: 5685/);
+  assert.match(articleText, /在看: 3202/);
+  assert.match(articleText, /分享: 21013/);
+  assert.match(articleText, /收藏: 3129/);
+  assert.match(articleText, /评论: 12/);
+
+  // 上游新增字段时不能被吞掉
+  const withUnknown = formatArticleDataText({ data: { read: 1, new_metric: 7 } });
+  assert.match(withUnknown, /阅读: 1/);
+  assert.match(withUnknown, /new_metric: 7/);
 
   const emptyText = formatArticleDataText({ data: {} });
   assert.match(emptyText, /上游未返回字段/);

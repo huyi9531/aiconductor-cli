@@ -1,6 +1,16 @@
 const { wxArticleData, wxHistoryArticles } = require("../api");
 const { outputResult, resolveKeyOrExit, handleApiError } = require("../lib/cli-utils");
 
+// wx_article_data 的真实返回字段（2026-11-04 线上实测）；上游改名时未知键仍原样输出
+const ARTICLE_DATA_LABELS = [
+  ["read", "阅读"],
+  ["zan", "点赞"],
+  ["looking", "在看"],
+  ["share_num", "分享"],
+  ["collect_num", "收藏"],
+  ["comment_count", "评论"],
+];
+
 /**
  * 获取公众号文章互动数据
  * @param {string} url 微信文章链接
@@ -37,7 +47,7 @@ async function historyCommand(url, options = {}) {
 }
 
 /**
- * text 输出：展示上游返回的互动数据字段
+ * text 输出：公众号文章互动数据（已知字段给中文标签，未知字段原样输出）
  * @param {object} resp
  * @returns {string}
  */
@@ -45,17 +55,26 @@ function formatArticleDataText(resp = {}) {
   const data = resp.data || {};
   const lines = ["✓ 公众号文章互动数据"];
   if (resp.message) lines.push(`  消息: ${resp.message}`);
-  const keys = Object.keys(data);
-  if (keys.length === 0) {
+
+  const printed = new Set();
+  const known = [];
+  ARTICLE_DATA_LABELS.forEach(([key, label]) => {
+    if (data[key] === undefined) return;
+    printed.add(key);
+    known.push(`  ${label}: ${data[key]}`);
+  });
+  const extras = Object.keys(data)
+    .filter((key) => !printed.has(key))
+    .map((key) => {
+      const value = data[key];
+      return `  ${key}: ${value !== null && typeof value === "object" ? JSON.stringify(value) : String(value)}`;
+    });
+
+  if (known.length === 0 && extras.length === 0) {
     lines.push("  上游未返回字段（用 -f json 查看原始响应）");
     return lines.join("\n");
   }
-  keys.forEach((key) => {
-    const value = data[key];
-    const text = value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
-    lines.push(`  ${key}: ${text}`);
-  });
-  return lines.join("\n");
+  return lines.concat(known, extras).join("\n");
 }
 
 /**
@@ -68,8 +87,9 @@ function formatHistoryText(resp = {}) {
   const articles = Array.isArray(data.data) ? data.data : [];
   const lines = ["✓ 公众号历史文章"];
   const nickname = data.mp_nickname || data.nickname;
-  const wxid = data.mp_wxid || data.wxid;
-  if (nickname) lines.push(`  公众号: ${nickname}${wxid ? `（${wxid}）` : ""}`);
+  // 实测用 name 定位时只有 mp_ghid，api_docs 里的 mp_wxid / head_img 并不返回
+  const accountId = data.mp_wxid || data.wxid || data.mp_ghid;
+  if (nickname) lines.push(`  公众号: ${nickname}${accountId ? `（${accountId}）` : ""}`);
   lines.push(`  篇数:   ${articles.length}`);
   if (data.now_page !== undefined) lines.push(`  翻页:   ${data.now_page}`);
 
