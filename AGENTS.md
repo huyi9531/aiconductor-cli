@@ -94,11 +94,11 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 
 ### 维护 skill
 
-- 目录名、frontmatter `name`、实际调用的命令必须一致；`description` 写能力 + 用户原话触发 + 与相邻 skill 的边界（简报→content-briefing，单点搜索→doubao-search，网页→webpage-publish，抖音数据→douyin-toolbox，抖音文案→douyin-script-extract，抖音选题→douyin-topic-radar，抖音评论→douyin-comment-insight，抖音账号→douyin-account-analyze，小红书→xhs-note-publish）。
+- 目录名、frontmatter `name`、实际调用的命令必须一致；`description` 写能力 + 用户原话触发 + 与相邻 skill 的边界（简报→content-briefing，单点搜索→doubao-search，网页→webpage-publish，抖音数据→douyin-toolbox，抖音文案→douyin-script-extract，抖音选题→douyin-topic-radar，抖音评论→douyin-comment-insight，抖音账号→douyin-account-analyze，小红书→xhs-note-publish，公众号发文列表→wx-account-articles，单篇公众号数据→wx-article-data）。
 - `SKILL.md` 只放路由、决策、命令行、响应路径、安全规则；长选项表、安装与密钥恢复放 `references/`，并写明何时读。
 - 默认 JSON 输出，文档写稳定的 `data.data.*` 路径（`outputResult` 会额外包一层 `{success, data}`）。
 - 用户请求执行即等同授权：不要每次预检安装或密钥；安装说明只在需要时读一次，修复后重试原命令一次。
-- 安装说明被复制成 9 份 `references/aiconductor-skills-setup.md`（技能是独立安装单元，无法跨目录引用）；改它必须同步 9 份。改完跑 `md5sum .codex/skills/*/references/aiconductor-skills-setup.md | awk '{print $1}' | sort -u | wc -l`，结果必须是 **1**。
+- 安装说明被复制成 11 份 `references/aiconductor-skills-setup.md`（技能是独立安装单元，无法跨目录引用）；改它必须同步 11 份。改完跑 `md5sum .codex/skills/*/references/aiconductor-skills-setup.md | awk '{print $1}' | sort -u | wc -l`，结果必须是 **1**。
 
 ### 上架到 WorkBuddy
 
