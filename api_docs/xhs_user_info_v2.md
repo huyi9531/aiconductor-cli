@@ -5,7 +5,11 @@
 - **鉴权**: 请求头 `Authorization: Bearer <api_key>`（兼容 body/query 中 `api_key` 参数）
 
 ## 功能说明
-根据用户ID获取小红书用户详情，包括基本信息、互动数据（关注/粉丝/获赞与收藏）、标签等。按次计费。
+根据用户ID获取小红书用户详情，包括基本信息、互动数据（关注/粉丝/获赞与收藏/获赞/收藏）、标签等。按次计费。
+
+> **数据源变更（2026-11-05）**：上游由 YDDM `/xhs/user_detail`（实测 8.2s）切换为 TikHub `GET /api/v1/xiaohongshu/app_v2/get_user_info`（实测 2.3s），**入参与出参形状完全不变**：
+> `user_info.basic_info{nickname, avatar, red_id, gender, ip_location, desc}` + `user_info.interactions[5]{type, name, count}`（关注/粉丝/获赞与收藏/获赞/收藏）+ `user_info.tags[string]`。
+> 两个口径差异需知悉：① `ip_location` 统一给**中文省份**（优先取资料地区省份，回落英文 IP 归属地，如 `福建`）；② `获赞与收藏` 取上游自带的合计值，缺失时用 `获赞 + 收藏` 兜底。
 
 ## 请求参数
 

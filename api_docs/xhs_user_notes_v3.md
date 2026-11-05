@@ -7,6 +7,8 @@
 ## 功能说明
 根据用户 ID 获取小红书用户笔记列表，支持自动翻页（cursor 机制），兼容图文与视频笔记，按页计费。费用以 api_services 表配置为准（service_code: `xhs_user_notes_v2`）。
 
+> **数据源变更（2026-11-05）**：上游由 YDDM `/xhs/user_post2`（持续返回 `code 5003 网络连接失败`，接口表现为 `success:true` + 空 `notes`）切换为 TikHub `GET /api/v1/xiaohongshu/app_v2/get_user_posted_notes`（实测 20 条/页、1.9s）。**入参与出参形状完全不变**，与 `xhs_user_notes_v2` 同一上游、同一输出结构（差别只在 `desc` 等字段的原始内容）。
+
 ## 请求参数
 
 | 参数名 | 类型 | 必填 | 默认值 | 说明 |
