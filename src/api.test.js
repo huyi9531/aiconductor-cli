@@ -433,6 +433,40 @@ test("wx endpoints turn HTTP 200 business failures into api_error", async () => 
   );
 });
 
+test("wx history treats an upstream code inside a successful response as a failure", async () => {
+  // 2026-11-05 线上实测：平台仍回 success:true，把上游失败塞进 data.code（api_docs：code 0 为成功），
+  // 文章数组为空。若照 success 判断，会把「上游挂了」报成「这个号最近没发文」。
+  const upstreamFailure = {
+    success: true,
+    message: "未能获取到任何数据。请检查参数或账户余额。",
+    billing: { pages_billed: 0, transaction_ids: [] },
+    data: { code: 20001, msg: "error", data: [], now_page: 0, now_page_articles_num: 0 },
+  };
+
+  await assert.rejects(
+    () => captureRequest(() => wxHistoryArticles("test-key", { name: "人民日报" }), upstreamFailure),
+    (err) =>
+      err.type === "api_error" &&
+      err.message.includes("未能获取到任何数据") &&
+      err.message.includes("20001")
+  );
+});
+
+test("wx history still resolves an empty page when the upstream code is 0", async () => {
+  const emptyButOk = {
+    success: true,
+    message: "微信公众号历史文章获取完成。成功获取 1 页数据，共 0 篇文章。",
+    data: { code: 0, msg: "success", data: [], now_page: 1 },
+  };
+
+  const request = await captureRequest(
+    () => wxHistoryArticles("test-key", { name: "不存在的号" }),
+    emptyButOk
+  );
+  assert.deepEqual(request.result.data.data, []);
+  assert.equal(request.result.success, true);
+});
+
 test("wx history formatter lists documented article fields", () => {
   const text = formatHistoryText({
     data: {

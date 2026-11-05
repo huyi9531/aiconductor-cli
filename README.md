@@ -374,6 +374,8 @@ aiconductor-cli wx history "https://mp.weixin.qq.com/s?__biz=xxxx" -f text
 
 返回路径：`article-data` 的互动数据在 `data.data`（`read` / `zan` / `looking` / `share_num` / `collect_num` / `comment_count`，text 模式渲染成阅读/点赞/在看/分享/收藏/评论，未知字段原样输出）；`history` 的文章在 `data.data.data[]`（标题 `title`、时间 `post_time_str`、阅读 `read`、点赞 `zan`、链接 `url`）。
 
+`history` 另带 `data.data.code`（上游返回码）：`0` 才表示成功；非 0（如 `107` 名称/链接对不上、`20001` 平台侧上游故障）时 CLI 以退出码 1 报 `api_error`，不会用空列表冒充成功。
+
 ### 通用选项
 
 所有命令支持：

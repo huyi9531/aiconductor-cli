@@ -176,6 +176,22 @@ function throwOnBusinessFailure(resp) {
   return resp;
 }
 
+/**
+ * wx_history_articles 把上游失败塞在 HTTP 200 + success:true 的 data.code 里
+ * （api_docs：data.code 为 0 才算成功，平台侧并不改写成 success:false）。
+ * 不认这个码，就会把「上游挂了」当成「这个号没有文章」。
+ * @param {object} resp
+ * @returns {object}
+ */
+function throwOnWxHistoryFailure(resp) {
+  const inner = resp && resp.data;
+  if (inner && typeof inner.code === "number" && inner.code !== 0) {
+    const detail = resp.message || inner.msg || "上游返回失败";
+    throw Object.assign(new Error(`${detail}（上游错误码 ${inner.code}）`), { type: "api_error" });
+  }
+  return resp;
+}
+
 function contentTypeForFilename(filename) {
   const types = {
     ".avif": "image/avif",
@@ -638,7 +654,7 @@ async function wxHistoryArticles(apiKey, params = {}) {
   const resp = await httpPost(API_HOST, WX_HISTORY_ARTICLES_PATH, body, {
     Authorization: `Bearer ${apiKey}`,
   });
-  return throwOnBusinessFailure(stripBilling(resp));
+  return throwOnWxHistoryFailure(throwOnBusinessFailure(stripBilling(resp)));
 }
 
 /**

@@ -68,7 +68,7 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 | 命令 | 用途 |
 |---|---|
 | `npm install` | 安装唯一依赖 `commander`（有 lock） |
-| `npm test` | `node --test`，25 个用例，离线打桩，不需要 API Key |
+| `npm test` | `node --test`，27 个用例，离线打桩，不需要 API Key |
 | `node bin/aiconductor-cli.js --help` | 不安装也能本地运行，核对命令面 |
 | `node bin/aiconductor-cli.js <组> <子命令> --help` | 核对某个命令的参数与默认值；CLI 契约以它为准 |
 | `npm pack --dry-run` | 确认发布内容：含 `src/**`（含测试）、`api_docs/`、`AGENTS.md`，不含 `.agents/` 与 `references/`（平台侧规范只在本机，已从 `.npmignore`/`.gitignore` 排掉） |
@@ -124,6 +124,7 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 - **小红书发布是两段式**：本地文件或 Base64 先经 `r2Upload` 换成临时公开 URL（`valid_days` 仅 1 或 7，默认 7；图片单张 ≤ 32MB，本地视频 ≤ 100MB），再调用计费接口生成 H5 页与二维码。Base64 参数支持 `@文件路径`。
 - **热点简报是部分成功语义**：热榜与小红书热榜并行请求，任一成功即返回 `success:true`，失败写入 `data.failed_sources` / `data.failed_services`；仅两个服务都失败才退出 1。不要简化成"全有或全无"。
 - **`wx` 组线上真实字段**（2026-11-04 实测调用）：`wx_article_data` 返回 `read` / `zan` / `looking`（在看）/ `share_num` / `collect_num` / `comment_count`；`wx_history_articles` 用 `--name` 定位时业务层只有 `mp_nickname` 与 `mp_ghid`——**`api_docs` 写的 `mp_wxid` / `head_img` 实际不返回**；文章项字段与文档一致（`post_time_str` / `read` / `zan` / `original` / `url` / `digest`）。改 formatter 按实测字段，不要按文档新增字段。
+- **`wx_history_articles` 的上游失败藏在 `data.code`**：平台侧仍回 `success:true`，只有 `data.code` 非 0 才是失败（实测 `107` = 名称/链接对不上，`20001` = 平台侧上游故障），`src/api.js` 的 `throwOnWxHistoryFailure` 把它转成 `api_error`（退出码 1）。别用「数组为空」推断「这个号没发文」。
 - **抖音字段单位不统一**：`video-search` 的 `video.duration` 是**毫秒**，`user-videos` 的 `duration` 是 `"MM:SS"` 字符串——同名不同单位，跨端点复用代码必翻车。
 - **抖音时间戳是北京时间编码**：`create_time` 按 UTC 渲染出来就是北京时间，**不要再 +8 小时**（2026-10-28 实测 `video-search`/`video-comments`/`user-videos` 三处：+8 会让半小时前发的视频落到 7 小时后）。`user-videos` 另带 `create_time_formatted`，同口径。
 - **密钥解析**：`-k` > `AICONDUCTOR_API_KEY` > **当前工作目录**的 `.env`（不向上查找）；缺失时 `resolveKeyOrExit` 打印错误并退出 1。
@@ -149,7 +150,7 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 
 ## 最短验证闭环
 
-`npm test`（25 个用例，离线打桩，不需要 API Key）。改动涉及 `bin/`、`README.md`、skill 文字或新增命令时，再补一条人工核对：`node bin/aiconductor-cli.js <组> <子命令> --help`——`bin/` 的接线没有自动化测试覆盖。
+`npm test`（27 个用例，离线打桩，不需要 API Key）。改动涉及 `bin/`、`README.md`、skill 文字或新增命令时，再补一条人工核对：`node bin/aiconductor-cli.js <组> <子命令> --help`——`bin/` 的接线没有自动化测试覆盖。
 
 ## 任务执行与报告约定
 
