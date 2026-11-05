@@ -315,6 +315,70 @@ aiconductor-cli xhs hot-list [选项]
 aiconductor-cli xhs hot-list -f text
 ```
 
+#### 笔记详情 `xhs note`
+
+```bash
+aiconductor-cli xhs note <ref> [选项]
+```
+
+`ref` 支持笔记链接、`xhslink.cn`/`xhslink.com` 短链、完整分享口令，或 24 位 `note_id`。
+
+```bash
+aiconductor-cli xhs note "https://www.xiaohongshu.com/discovery/item/6ae972260000000015020d84" -f text
+aiconductor-cli xhs note "标题 https://xhslink.cn/o/85lbqBJtO94 复制内容，然后进入【小红书】查看相关笔记。"
+```
+
+#### 笔记评论 `xhs comments`
+
+```bash
+aiconductor-cli xhs comments <ref> [选项]
+```
+
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| `--max-pages <n>` | 最大翻页数，范围 1~5 | 1 |
+| `--max-seconds <n>` | 最长运行时间（秒），上限 170 | 50 |
+
+返回一级评论，并带上上游可见的楼内回复（`sub_comments`）。`data.data.comments[]` 里 `like_count`、`sub_comment_count` 是**字符串**，评论的 `user` 对象用 `userid`/`original_name`（与笔记的 `user_id`/`nickname` 不同）。
+
+#### 笔记搜索 `xhs search`
+
+```bash
+aiconductor-cli xhs search <keyword> [选项]
+```
+
+| 选项 | 说明 | 默认值 |
+|------|------|--------|
+| `--sort <sort>` | `general` / `time_descending` / `popularity_descending` / `comment_descending` / `collect_descending` | 不限 |
+| `--note-time <range>` | `day` / `week` / `halfyear` | 不限 |
+| `--note-type <type>` | `video` / `note` | 不限 |
+| `--max-pages <n>` | 最大翻页数，范围 1~5 | 1 |
+
+示例：
+```bash
+aiconductor-cli xhs search "AI编程" --note-time week --sort popularity_descending --max-pages 2 -f text
+```
+
+结果在 `data.data.items[].noteInfo` 与 `.userInfo`。注意 `noteInfo.readNum` 与 `userInfo.fansNum` 实测恒为 0，不要当真实阅读量/粉丝数用。
+
+#### 用户详情 `xhs user` / 用户笔记 `xhs user-notes`
+
+```bash
+aiconductor-cli xhs user <ref> [选项]
+aiconductor-cli xhs user-notes <ref> [选项]      # 支持 --max-pages，范围 1~5
+```
+
+`ref` 支持主页链接 `/user/profile/<id>` 或 24 位 `user_id`。
+
+```bash
+aiconductor-cli xhs user "https://www.xiaohongshu.com/user/profile/53cd3bbbb4c4d64f93463018" -f text
+aiconductor-cli xhs user-notes 53cd3bbbb4c4d64f93463018 --max-pages 2 -f text
+```
+
+用户详情在 `user_info`（`basic_info` + 5 项中文 `interactions` + `tags`）；用户笔记在 `data.data.notes[]`。
+
+> 时间口径：小红书所有 `time` 都是 **UTC 时间戳**（笔记详情为秒、用户笔记为毫秒），`-f text` 已自动换算成北京时间；**不要**再额外加 8 小时。上游的 `time_desc`（如 `10-28`）是 UTC-8 口径，文本模式不使用它。
+
 ### 小红书扫码发布
 
 生成图文或视频笔记的 H5 发布页与二维码。素材支持公网 URL、本地文件、Base64/data URL，以及包含 Base64 内容的文本文件。
@@ -397,6 +461,11 @@ aiconductor-cli wx history "https://mp.weixin.qq.com/s?__biz=xxxx" -f text
 | 抖音视频搜索 | 0.15 元/页 |
 | 抖音链接转文字 | 0.01 元/次 + 0.0003 元/秒 |
 | 小红书热榜 | 以平台服务配置为准 |
+| 小红书笔记详情 | 以平台服务配置为准（按次） |
+| 小红书笔记评论 | 以平台服务配置为准（按成功翻页数） |
+| 小红书笔记搜索 | 以平台服务配置为准（按成功翻页数） |
+| 小红书用户详情 | 以平台服务配置为准（按次） |
+| 小红书用户笔记列表 | 以平台服务配置为准（按成功翻页数） |
 | 小红书扫码发布 | 0.05 元/次 |
 | 公众号文章互动数据 | 以平台服务配置为准（按次） |
 | 公众号历史文章列表 | 以平台服务配置为准（按成功翻页数） |

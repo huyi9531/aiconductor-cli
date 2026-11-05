@@ -18,7 +18,15 @@ const {
   videoSearchCommand,
   linkToTextCommand,
 } = require("../src/commands/douyin");
-const { hotListCommand: xhsHotListCommand, notePublishCommand } = require("../src/commands/xhs");
+const {
+  hotListCommand: xhsHotListCommand,
+  notePublishCommand,
+  noteCommand: xhsNoteCommand,
+  commentsCommand: xhsCommentsCommand,
+  searchCommand: xhsSearchCommand,
+  userCommand: xhsUserCommand,
+  userNotesCommand: xhsUserNotesCommand,
+} = require("../src/commands/xhs");
 const {
   articleDataCommand: wxArticleDataCommand,
   historyCommand: wxHistoryCommand,
@@ -256,6 +264,53 @@ xhsCmd
   .option("--upload-valid-days <days>", "本地/Base64素材临时链接有效期：1或7天", "7")
   .option("-f, --format <format>", "输出格式：json 或 text", "json")
   .action((type, options) => { notePublishCommand(type, options); });
+
+xhsCmd
+  .command("note")
+  .description("获取小红书笔记详情（按次计费）")
+  .argument("<ref>", "笔记链接、xhslink 短链、分享口令或 24 位 note_id")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((ref, options) => { xhsNoteCommand(ref, options); });
+
+xhsCmd
+  .command("comments")
+  .description("获取小红书笔记评论，含可见的楼内回复（按成功翻页计费）")
+  .argument("<ref>", "笔记链接、xhslink 短链、分享口令或 24 位 note_id")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--max-pages <n>", "最大翻页数，范围 1~5（每页约 10 条）", "1")
+  .option("--max-seconds <n>", "最长运行时间（秒），最大 170", "50")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((ref, options) => { xhsCommentsCommand(ref, options); });
+
+xhsCmd
+  .command("search")
+  .description("按关键词搜索小红书笔记（按成功翻页计费，每页约 20 条）")
+  .argument("<keyword>", "搜索关键词")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--sort <sort>", "排序：general/time_descending/popularity_descending/comment_descending/collect_descending")
+  .option("--note-time <range>", "发布时间：day/week/halfyear（不传=不限）")
+  .option("--note-type <type>", "笔记类型：video/note（不传=不限）")
+  .option("--max-pages <n>", "最大翻页数，范围 1~5", "1")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((keyword, options) => { xhsSearchCommand(keyword, options); });
+
+xhsCmd
+  .command("user")
+  .description("获取小红书用户详情（按次计费）")
+  .argument("<ref>", "主页链接 /user/profile/ 或 24 位 user_id")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((ref, options) => { xhsUserCommand(ref, options); });
+
+xhsCmd
+  .command("user-notes")
+  .description("获取小红书用户笔记列表（按成功翻页计费，每页约 20 条）")
+  .argument("<ref>", "主页链接 /user/profile/ 或 24 位 user_id")
+  .option("-k, --api-key <key>", "AIConductor API Key")
+  .option("--max-pages <n>", "最大翻页数，范围 1~5", "1")
+  .option("-f, --format <format>", "输出格式：json 或 text", "json")
+  .action((ref, options) => { xhsUserNotesCommand(ref, options); });
 
 // wx 子命令组（公众号数据）
 const wxCmd = program

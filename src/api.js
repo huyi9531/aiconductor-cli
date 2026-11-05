@@ -19,6 +19,25 @@ const DOUYIN_USER_SEARCH_PATH = "/api/douyin_user_search";
 const DOUYIN_VIDEO_SEARCH_PATH = "/api/douyin_video_search";
 const DOUYIN_LINK_TO_TEXT_PATH = "/api/douyin_link_to_text_v2";
 const XHS_NOTE_PUBLISH_PATH = "/api/xhs_note_publish";
+const XHS_NOTE_INFO_PATH = "/api/xhs_note_info_v3";
+const XHS_NOTE_COMMENTS_PATH = "/api/xhs_note_comments_fast";
+const XHS_NOTE_SEARCH_PATH = "/api/xhs_note_search_v3";
+const XHS_USER_INFO_PATH = "/api/xhs_user_info_v2";
+// 刻意打 v2：v3 已于 2026-11-05 迁到同一上游且同输出，但 v2 是历史真实流量所在（api_docs 两篇一致）。
+const XHS_USER_NOTES_PATH = "/api/xhs_user_notes_v2";
+
+// 本地校验区间，命中就在发请求前拦截，不产生计费
+const XHS_MAX_PAGES_LIMIT = 5;
+const XHS_MAX_SECONDS_LIMIT = 170;
+const XHS_SEARCH_SORTS = [
+  "general",
+  "time_descending",
+  "popularity_descending",
+  "comment_descending",
+  "collect_descending",
+];
+const XHS_SEARCH_NOTE_TIMES = ["day", "week", "halfyear"];
+const XHS_SEARCH_NOTE_TYPES = ["video", "note"];
 const WX_ARTICLE_DATA_PATH = "/api/wx_article_data";
 const WX_HISTORY_ARTICLES_PATH = "/api/wx_history_articles";
 const R2_UPLOADER_PATH = "/api/r2_uploader";
@@ -677,6 +696,208 @@ async function xhsNotePublish(apiKey, params) {
   return stripBilling(resp);
 }
 
+/**
+ * 抛 api_error（上层按业务失败处理）
+ * @param {object} result
+ * @returns {object}
+ */
+function throwOnXhsFailure(result) {
+  if (result?.success === false) {
+    throw Object.assign(new Error(result.message || "小红书接口返回失败"), { type: "api_error" });
+  }
+  return result;
+}
+
+/**
+ * 校验 1~上限 的正整数（上限单独校验，避免与其他命令的 limit 语义混住）
+ * @param {*} value
+ * @param {string} name
+ * @param {number} max
+ * @returns {number|null}
+ */
+function validateXhsPositiveInt(value, name, max) {
+  if (value === undefined || value === null || value === "") return null;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1 || n > max) {
+    throw Object.assign(new Error(`${name} 须为 1~${max} 的整数，收到: ${value}`), {
+      type: "validation_error",
+    });
+  }
+  return n;
+}
+
+/**
+ * 获取小红书笔记详情。
+ * 注意：只传 note_id 即可（2026-11-05 实测，不需要 xsec_token）。
+ * @param {string} apiKey
+ * @param {string} noteId
+ * @returns {Promise<object>} `note_data` 在顶层，没有 data.data 嵌套
+ */
+async function xhsNoteInfo(apiKey, noteId) {
+  const resp = await httpPost(API_HOST, XHS_NOTE_INFO_PATH, { note_id: noteId }, {
+    Authorization: `Bearer ${apiKey}`,
+  }, http);
+  return throwOnXhsFailure(stripBilling(resp));
+}
+
+/**
+ * 获取小红书笔记一级评论（含可见的楼内回复 sub_comments）。
+ * @param {string} apiKey
+ * @param {{noteId?: string, shareText?: string, maxPages?: number, maxSeconds?: number}} params
+ * @returns {Promise<object>} `data.data.comments`，10 条/页
+ */
+async function xhsNoteComments(apiKey, params = {}) {
+  const body = {};
+  const maxPages = validateXhsPositiveInt(params.maxPages, "max_pages", XHS_MAX_PAGES_LIMIT);
+  const maxSeconds = validateXhsPositiveInt(params.maxSeconds, "max_seconds", XHS_MAX_SECONDS_LIMIT);
+  if (maxPages !== null) body.max_pages = maxPages;
+  if (maxSeconds !== null) body.max_seconds = maxSeconds;
+
+  if (params.noteId) {
+    body.note_id = params.noteId;
+  } else if (params.shareText) {
+    body.share_text = params.shareText;
+  } else {
+    throw Object.assign(new Error("note_id 与分享链接至少提供一个"), { type: "validation_error" });
+  }
+
+  const resp = await httpPost(API_HOST, XHS_NOTE_COMMENTS_PATH, body, {
+    Authorization: `Bearer ${apiKey}`,
+  }, http);
+  return throwOnXhsFailure(stripBilling(resp));
+}
+
+/**
+ * 按关键词搜索小红书笔记。
+ * @param {string} apiKey
+ * @param {{keyword: string, maxPages?: number, sort?: string, noteTime?: string, noteType?: string}} params
+ * @returns {Promise<object>} `data.data.items[]`，20 条/页
+ */
+async function xhsNoteSearch(apiKey, params = {}) {
+  const keyword = typeof params.keyword === "string" ? params.keyword.trim() : "";
+  if (!keyword) {
+    throw Object.assign(new Error("keyword 不能为空"), { type: "validation_error" });
+  }
+
+  const body = { keyword };
+  const maxPages = validateXhsPositiveInt(params.maxPages, "max_pages", XHS_MAX_PAGES_LIMIT);
+  if (maxPages !== null) body.max_pages = maxPages;
+
+  if (params.sort) {
+    if (!XHS_SEARCH_SORTS.includes(params.sort)) {
+      throw Object.assign(new Error(`sort 仅支持 ${XHS_SEARCH_SORTS.join("|")}，收到: ${params.sort}`), {
+        type: "validation_error",
+      });
+    }
+    body.sort = params.sort;
+  }
+  if (params.noteTime) {
+    if (!XHS_SEARCH_NOTE_TIMES.includes(params.noteTime)) {
+      throw Object.assign(new Error(`note_time 仅支持 ${XHS_SEARCH_NOTE_TIMES.join("|")}，收到: ${params.noteTime}`), {
+        type: "validation_error",
+      });
+    }
+    body.note_time = params.noteTime;
+  }
+  if (params.noteType) {
+    if (!XHS_SEARCH_NOTE_TYPES.includes(params.noteType)) {
+      throw Object.assign(new Error(`note_type 仅支持 ${XHS_SEARCH_NOTE_TYPES.join("|")}，收到: ${params.noteType}`), {
+        type: "validation_error",
+      });
+    }
+    body.note_type = params.noteType;
+  }
+
+  const resp = await httpPost(API_HOST, XHS_NOTE_SEARCH_PATH, body, {
+    Authorization: `Bearer ${apiKey}`,
+  }, http);
+  return throwOnXhsFailure(stripBilling(resp));
+}
+
+/**
+ * 获取小红书用户详情。
+ * @param {string} apiKey
+ * @param {string} userId
+ * @returns {Promise<object>} `user_info` 在顶层，interactions 为 5 项中文
+ */
+async function xhsUserInfo(apiKey, userId) {
+  const resp = await httpPost(API_HOST, XHS_USER_INFO_PATH, { user_id: userId }, {
+    Authorization: `Bearer ${apiKey}`,
+  }, http);
+  return throwOnXhsFailure(stripBilling(resp));
+}
+
+/**
+ * 获取小红书用户笔记列表。
+ * @param {string} apiKey
+ * @param {{userId: string, maxPages?: number}} params
+ * @returns {Promise<object>} `data.data.notes[]`，20 条/页
+ */
+async function xhsUserNotes(apiKey, params = {}) {
+  if (!params.userId) {
+    throw Object.assign(new Error("user_id 不能为空"), { type: "validation_error" });
+  }
+  const body = { user_id: params.userId };
+  const maxPages = validateXhsPositiveInt(params.maxPages, "max_pages", XHS_MAX_PAGES_LIMIT);
+  if (maxPages !== null) body.max_pages = maxPages;
+
+  const resp = await httpPost(API_HOST, XHS_USER_NOTES_PATH, body, {
+    Authorization: `Bearer ${apiKey}`,
+  }, http);
+  return throwOnXhsFailure(stripBilling(resp));
+}
+
+/**
+ * 展开小红书分享短链（xhslink.cn / xhslink.com）为真实长链。
+ * 短链必须跟随 302，否则拿不到 note_id。
+ * @param {string} shortUrl
+ * @returns {Promise<string>} 长链；不是跳转时原样返回
+ */
+function resolveXhsShortLink(shortUrl) {
+  return new Promise((resolve, reject) => {
+    let parsed;
+    try {
+      parsed = new URL(shortUrl);
+    } catch {
+      reject(Object.assign(new Error(`短链格式无效: ${shortUrl}`), { type: "validation_error" }));
+      return;
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      reject(Object.assign(new Error(`短链仅支持 HTTP/HTTPS: ${shortUrl}`), { type: "validation_error" }));
+      return;
+    }
+
+    const transport = parsed.protocol === "https:" ? https : http;
+    const req = transport.request({
+      hostname: parsed.hostname,
+      port: parsed.port || (parsed.protocol === "https:" ? 443 : 80),
+      path: `${parsed.pathname}${parsed.search}`,
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+      },
+    }, (res) => {
+      const location = res.headers?.location;
+      if (res.statusCode >= 300 && res.statusCode < 400 && location) {
+        if (res.resume) res.resume();
+        resolve(location);
+        return;
+      }
+      if (res.resume) res.resume();
+      resolve(shortUrl);
+    });
+
+    req.setTimeout(15000, () => {
+      req.destroy();
+      reject(Object.assign(new Error(`短链解析超时: ${shortUrl}`), { type: "network_error" }));
+    });
+    req.on("error", (err) => {
+      reject(Object.assign(new Error(`短链解析失败: ${err.message}`), { type: "network_error" }));
+    });
+    req.end();
+  });
+}
+
 module.exports = {
   resolveApiKey,
   publishHtml,
@@ -695,6 +916,12 @@ module.exports = {
   douyinLinkToText,
   r2Upload,
   xhsNotePublish,
+  xhsNoteInfo,
+  xhsNoteComments,
+  xhsNoteSearch,
+  xhsUserInfo,
+  xhsUserNotes,
+  resolveXhsShortLink,
   wxArticleData,
   wxHistoryArticles,
 };

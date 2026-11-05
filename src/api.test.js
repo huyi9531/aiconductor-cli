@@ -4,7 +4,23 @@ const http = require("node:http");
 const https = require("node:https");
 const test = require("node:test");
 
-const { hotList, webSearch, xhsHotList } = require("./api");const {
+const { hotList, webSearch, xhsHotList } = require("./api");
+const {
+  xhsNoteInfo,
+  xhsNoteComments,
+  xhsNoteSearch,
+  xhsUserInfo,
+  xhsUserNotes,
+  resolveXhsShortLink,
+} = require("./api");
+const {
+  extractUrlFromText,
+  parseXhsNoteId,
+  parseXhsUserId,
+  formatXhsTime,
+  toCount,
+} = require("./lib/cli-utils");
+const {
   buildBriefingResult,
   formatHotListText,
   parseLimit,
@@ -512,4 +528,250 @@ test("wx article-data formatter labels the fields the live endpoint returns", ()
 
   const emptyText = formatArticleDataText({ data: {} });
   assert.match(emptyText, /上游未返回字段/);
+});
+
+// ---------------------------------------------------------------------------
+// 小红书（xhs）数据命令组
+// 依据：api_docs/xhs_*.md 的请求字段 + 2026-11-05 线上真实响应
+// ---------------------------------------------------------------------------
+
+test("xhsNoteInfo posts note_id to the v3 note detail endpoint over http", async () => {
+  const request = await captureRequest(
+    () => xhsNoteInfo("test-key", "6ae972260000000015020d84"),
+    { success: true, message: "笔记详情获取成功", note_data: { note_id: "6ae972260000000015020d84" }, billing: { service_fee: 0.15 } },
+    http
+  );
+
+  assert.equal(request.options.hostname, "plugin.aiconductor.fun");
+  assert.equal(request.options.path, "/api/xhs_note_info_v3");
+  assert.equal(request.options.port, 80);
+  assert.equal(request.options.method, "POST");
+  assert.equal(request.options.headers.Authorization, "Bearer test-key");
+  assert.deepEqual(request.body, { note_id: "6ae972260000000015020d84" });
+  // billing 不进任何输出
+  assert.equal(request.result.billing, undefined);
+  assert.equal(request.result.note_data.note_id, "6ae972260000000015020d84");
+});
+
+test("xhsNoteComments sends pagination fields and accepts share_text", async () => {
+  const request = await captureRequest(
+    () => xhsNoteComments("test-key", { noteId: "6ae972260000000015020d84", maxPages: 2, maxSeconds: 40 }),
+    { success: true, data: { comments: [], total_comments: 0 } },
+    http
+  );
+
+  assert.equal(request.options.path, "/api/xhs_note_comments_fast");
+  assert.equal(request.options.port, 80);
+  assert.deepEqual(request.body, {
+    note_id: "6ae972260000000015020d84",
+    max_pages: 2,
+    max_seconds: 40,
+  });
+});
+
+test("xhsNoteComments prefers share_text only when note id is absent", async () => {
+  const withShare = await captureRequest(
+    () => xhsNoteComments("test-key", { shareText: "https://xhslink.cn/o/85lbqBJtO94" }),
+    { success: true, data: { comments: [] } },
+    http
+  );
+  assert.deepEqual(withShare.body, { share_text: "https://xhslink.cn/o/85lbqBJtO94" });
+
+  // 两个都没给：本地拒绝，不发请求
+  await assert.rejects(() => xhsNoteComments("test-key", {}), { type: "validation_error" });
+  // 越界：max_pages 只允许 1~5，max_seconds 不超过平台 170s 上限
+  await assert.rejects(
+    () => xhsNoteComments("test-key", { noteId: "6ae972260000000015020d84", maxPages: 6 }),
+    { type: "validation_error" }
+  );
+  await assert.rejects(
+    () => xhsNoteComments("test-key", { noteId: "6ae972260000000015020d84", maxSeconds: 171 }),
+    { type: "validation_error" }
+  );
+});
+
+test("xhsNoteSearch maps keyword filters to the v3 search endpoint", async () => {
+  const request = await captureRequest(
+    () => xhsNoteSearch("test-key", {
+      keyword: "AI编程",
+      maxPages: 3,
+      sort: "popularity_descending",
+      noteTime: "week",
+      noteType: "video",
+    }),
+    { success: true, data: { items: [], has_more: false } },
+    http
+  );
+
+  assert.equal(request.options.path, "/api/xhs_note_search_v3");
+  assert.equal(request.options.port, 80);
+  assert.equal(request.options.headers.Authorization, "Bearer test-key");
+  assert.deepEqual(request.body, {
+    keyword: "AI编程",
+    max_pages: 3,
+    sort: "popularity_descending",
+    note_time: "week",
+    note_type: "video",
+  });
+});
+
+test("xhsNoteSearch rejects unknown enum values and empty keywords", async () => {
+  await assert.rejects(() => xhsNoteSearch("test-key", { keyword: "  " }), { type: "validation_error" });
+  await assert.rejects(
+    () => xhsNoteSearch("test-key", { keyword: "AI", sort: "likes" }),
+    { type: "validation_error" }
+  );
+  await assert.rejects(
+    () => xhsNoteSearch("test-key", { keyword: "AI", noteTime: "year" }),
+    { type: "validation_error" }
+  );
+  await assert.rejects(
+    () => xhsNoteSearch("test-key", { keyword: "AI", noteType: "image" }),
+    { type: "validation_error" }
+  );
+});
+
+test("xhsUserInfo maps user_id and xhsUserNotes maps pagination", async () => {
+  const userRequest = await captureRequest(
+    () => xhsUserInfo("test-key", "53cd3bbbb4c4d64f93463018"),
+    { success: true, user_info: { basic_info: {} } },
+    http
+  );
+  assert.equal(userRequest.options.path, "/api/xhs_user_info_v2");
+  assert.equal(userRequest.options.port, 80);
+  assert.deepEqual(userRequest.body, { user_id: "53cd3bbbb4c4d64f93463018" });
+
+  const notesRequest = await captureRequest(
+    () => xhsUserNotes("test-key", { userId: "53cd3bbbb4c4d64f93463018", maxPages: 2 }),
+    { success: true, data: { notes: [] } },
+    http
+  );
+  // 刻意打 v2 端点：v2/v3 现在同上游同输出，v2 是历史真实流量所在
+  assert.equal(notesRequest.options.path, "/api/xhs_user_notes_v2");
+  assert.equal(notesRequest.options.port, 80);
+  assert.deepEqual(notesRequest.body, { user_id: "53cd3bbbb4c4d64f93463018", max_pages: 2 });
+});
+
+test("xhs endpoints turn business failures into api_error", async () => {
+  await assert.rejects(
+    () => captureRequest(
+      () => xhsNoteInfo("test-key", "6ae972260000000015020d84"),
+      { success: false, message: "笔记ID无效或笔记不可访问" },
+      http
+    ),
+    { type: "api_error", message: "笔记ID无效或笔记不可访问" }
+  );
+});
+
+test("parseXhsNoteId and parseXhsUserId accept ids, long links and share copy", () => {
+  const id = "6ae972260000000015020d84";
+  assert.equal(parseXhsNoteId(id), id);
+  assert.equal(
+    parseXhsNoteId(`字节早就不是下狗了 https://www.xiaohongshu.com/discovery/item/${id}?xsec_token=abc 复制内容`),
+    id
+  );
+  assert.equal(parseXhsNoteId(`https://www.xiaohongshu.com/explore/${id}?xsec_source=pc_share`), id);
+  // 小红书号/主页/空串都不该被当成 note id
+  assert.equal(parseXhsNoteId("hainingshushu"), null);
+  assert.equal(parseXhsNoteId(""), null);
+  assert.equal(parseXhsNoteId(undefined), null);
+
+  const userId = "53cd3bbbb4c4d64f93463018";
+  assert.equal(parseXhsUserId(userId), userId);
+  assert.equal(parseXhsUserId(`https://www.xiaohongshu.com/user/profile/${userId}?xsec_token=x`), userId);
+  assert.equal(parseXhsUserId("https://www.xiaohongshu.com/explore/6ae972260000000015020d84"), null);
+});
+
+test("extractUrlFromText pulls the first url out of share copy", () => {
+  assert.equal(
+    extractUrlFromText("字节早就不是下狗了，不想承认也不行 https://xhslink.cn/o/85lbqBJtO94 复制内容，然后进入【小红书】查看相关笔记。"),
+    "https://xhslink.cn/o/85lbqBJtO94"
+  );
+  // 中文全角标点紧贴链接时不能带进 url
+  assert.equal(extractUrlFromText("看这个https://xhslink.cn/o/abc），很准"), "https://xhslink.cn/o/abc");
+  assert.equal(extractUrlFromText("没有链接"), null);
+});
+
+test("formatXhsTime renders UTC epoch as Beijing time", () => {
+  // 独立来源：同一视频笔记 note_info.time = 1793578330，+8h 等于 search 返回的 notePublishTime "2026-11-02 08:12:10"
+  assert.equal(formatXhsTime(1793578330), "2026-11-02 08:12:10");
+  // 毫秒（用户笔记列表）同口径
+  assert.equal(formatXhsTime(1793690772000), "2026-11-03 15:26:12");
+  assert.equal(formatXhsTime(0), "");
+  assert.equal(formatXhsTime(null), "");
+});
+
+test("toCount normalises string counts coming from the xhs upstream", () => {
+  assert.equal(toCount("54"), 54);
+  assert.equal(toCount("1,234"), 1234);
+  assert.equal(toCount(7), 7);
+  assert.equal(toCount("1.2万"), 12000);
+  assert.equal(toCount("1万+"), 10000);
+  assert.equal(toCount(undefined), 0);
+  assert.equal(toCount("abc"), 0);
+});
+
+test("resolveXhsShortLink follows the 302 to the real note url", async () => {
+  const finalUrl = "https://www.xiaohongshu.com/discovery/item/6ae972260000000015020d84?type=normal&xsec_token=abc";
+  const originalRequest = https.request;
+  https.request = (options, responseCallback) => {
+    const request = new EventEmitter();
+    request.setTimeout = () => {};
+    request.end = () => {
+      const response = new EventEmitter();
+      response.statusCode = 302;
+      response.headers = { location: finalUrl };
+      response.resume = () => {};
+      responseCallback(response);
+    };
+    request.destroy = () => {};
+    return request;
+  };
+
+  try {
+    const url = await resolveXhsShortLink("https://xhslink.cn/o/85lbqBJtO94");
+    assert.equal(url, finalUrl);
+  } finally {
+    https.request = originalRequest;
+  }
+});
+
+test("xhs text formatters: 评论按赞排序并展开楼内回复，搜索按赞排序", () => {
+  const { commentsTextFormatter, searchTextFormatter, noteTextFormatter } = require("./commands/xhs");
+
+  const commentsText = commentsTextFormatter({
+    data: {
+      has_more: true,
+      total_pages: 1,
+      comments: [
+        { content: "低赞", like_count: "1", sub_comment_count: "0", user: { original_name: "甲" } },
+        {
+          content: "高赞",
+          like_count: "43",
+          sub_comment_count: "1",
+          user: { original_name: "乙" },
+          sub_comments: [{ content: "楼内回复", user: { original_name: "丙" } }],
+        },
+      ],
+    },
+  });
+  assert.match(commentsText, /共取到 2 条评论/);
+  assert.ok(commentsText.indexOf("高赞") < commentsText.indexOf("低赞"), "评论应按点赞降序");
+  assert.match(commentsText, /↳ 丙: 楼内回复/);
+  assert.match(commentsText, /还有更多评论/);
+
+  const searchText = searchTextFormatter({
+    data: {
+      has_more: false,
+      items: [
+        { noteInfo: { title: "低", likeNum: 5, favNum: 1, cmtNum: 0, noteType: "normal" }, userInfo: { nickName: "A" } },
+        { noteInfo: { title: "高", likeNum: 900, favNum: 10, cmtNum: 3, noteType: "video" }, userInfo: { nickName: "B" } },
+      ],
+    },
+  });
+  assert.ok(searchText.indexOf("高") < searchText.indexOf("低"), "搜索结果应按点赞降序");
+
+  // 时间口径：上游是 UTC epoch，展示必须 +8（独立来源：+8h 等于上游 notePublishTime）
+  const noteText = noteTextFormatter({ note_data: { title: "T", type: "normal", time: 1793578330 } });
+  assert.match(noteText, /2026-11-02 08:12:10/);
 });

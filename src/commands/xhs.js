@@ -1,7 +1,29 @@
 const fs = require("fs");
 const path = require("path");
-const { r2Upload, xhsHotList, xhsNotePublish } = require("../api");
-const { outputResult, resolveKeyOrExit, handleApiError } = require("../lib/cli-utils");
+const {
+  r2Upload,
+  xhsHotList,
+  xhsNotePublish,
+  xhsNoteInfo,
+  xhsNoteComments,
+  xhsNoteSearch,
+  xhsUserInfo,
+  xhsUserNotes,
+  resolveXhsShortLink,
+} = require("../api");
+const {
+  outputResult,
+  resolveKeyOrExit,
+  handleApiError,
+  extractUrlFromText,
+  parseXhsNoteId,
+  parseXhsUserId,
+  formatXhsTime,
+  toCount,
+  safeParseInt,
+} = require("../lib/cli-utils");
+
+const XHS_SHORT_LINK_HOSTS = ["xhslink.cn", "xhslink.com"];
 
 const MAX_IMAGE_SIZE = 32 * 1024 * 1024;
 const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
@@ -41,7 +63,7 @@ function validateUrl(value, label) {
   let parsed;
   try {
     parsed = new URL(value);
-  } catch (_) {
+  } catch {
     throw validationError(`${label}不是有效 URL: ${value}`);
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -265,4 +287,323 @@ async function notePublishCommand(type, options = {}) {
   }
 }
 
-module.exports = { hotListCommand, hotListTextFormatter, notePublishCommand, notePublishTextFormatter };
+// ---------------------------------------------------------------------------
+// 小红书数据命令（note / comments / search / user / user-notes）
+// 口径依据：api_docs/xhs_*.md + 2026-11-05 线上实测
+// ---------------------------------------------------------------------------
+
+/**
+ * 把用户输入（笔记链接 / xhslink 短链 / 分享口令 / 裸 note_id）解析成 note_id。
+ * 短链必须本地展开成 302 后的长链，否则拿不到 id。
+ * @param {string} input
+ * @returns {Promise<string>}
+ */
+async function resolveNoteId(input) {
+  const direct = parseXhsNoteId(input);
+  if (direct) return direct;
+
+  const url = extractUrlFromText(typeof input === "string" ? input : "");
+  if (url) {
+    let hostname = "";
+    try {
+      hostname = new URL(url).hostname.toLowerCase();
+    } catch {
+      hostname = "";
+    }
+    if (XHS_SHORT_LINK_HOSTS.includes(hostname)) {
+      const longUrl = await resolveXhsShortLink(url);
+      const id = parseXhsNoteId(longUrl);
+      if (id) return id;
+    }
+  }
+
+  throw validationError("无法从输入里识别小红书笔记（支持笔记链接、xhslink 短链、分享口令或 24 位 note_id）");
+}
+
+/**
+ * 把用户输入（主页链接 / 裸 user_id）解析成 user_id。
+ * @param {string} input
+ * @returns {string}
+ */
+function resolveUserId(input) {
+  const id = parseXhsUserId(input);
+  if (id) return id;
+  throw validationError("无法从输入里识别小红书用户（支持主页链接 /user/profile/ 或 24 位 user_id）");
+}
+
+/**
+ * text 格式化：单篇笔记详情。
+ * @param {object} resp
+ * @returns {string}
+ */
+function noteTextFormatter(resp = {}) {
+  const note = resp.note_data || {};
+  const user = note.user || {};
+  const interact = note.interact_info || {};
+  const lines = [];
+
+  lines.push(`✓ ${note.title || "（无标题）"}`);
+  if (user.nickname) lines.push(`  作者:     ${user.nickname}`);
+  lines.push(`  类型:     ${note.type === "video" ? "视频笔记" : "图文笔记"}`);
+  const publishedAt = formatXhsTime(note.time);
+  if (publishedAt) lines.push(`  发布:     ${publishedAt}`);
+  lines.push(
+    `  互动:     赞 ${toCount(interact.liked_count)} / 藏 ${toCount(interact.collected_count)}` +
+      ` / 评 ${toCount(interact.comment_count)} / 分享 ${toCount(interact.share_count)}`
+  );
+  const tags = (note.tag_list || []).map((tag) => tag.name).filter(Boolean);
+  if (tags.length) lines.push(`  话题:     ${tags.join("、")}`);
+  if (note.image_list && note.image_list.length) {
+    lines.push(`  图片:     ${note.image_list.length} 张`);
+  }
+  if (note.type === "video" && note.video && note.video.duration) {
+    lines.push(`  视频时长: ${Math.round(note.video.duration)}s`);
+  }
+  if (note.desc) {
+    lines.push("");
+    lines.push(note.desc);
+  }
+  if (note.note_id) lines.push("", `笔记 ID: ${note.note_id}`);
+  return lines.join("\n");
+}
+
+/**
+ * text 格式化：笔记评论（按点赞降序）。
+ * @param {object} resp
+ * @returns {string}
+ */
+function commentsTextFormatter(resp = {}) {
+  const data = resp.data || {};
+  const comments = [...(data.comments || [])].sort((a, b) => toCount(b.like_count) - toCount(a.like_count));
+  const lines = [`✓ 共取到 ${comments.length} 条评论`];
+  // total_comments 是本次各页累计的总数，不是笔记真实评论总数（那要 note 接口的 comment_count）
+  if (data.has_more) lines.push(`  提示: 还有更多评论，可加 --max-pages（当前 ${toCount(data.total_pages) || 1} 页）`);
+  comments.forEach((item, index) => {
+    const nick = (item.user && (item.user.original_name || item.user.nickname)) || "匿名";
+    const ip = item.ip_location ? ` · ${item.ip_location}` : "";
+    lines.push("", `[${index + 1}] ${nick}${ip} · 赞 ${toCount(item.like_count)}`);
+    lines.push(`    ${(item.content || "").replace(/\n+/g, " ")}`);
+    const replies = Array.isArray(item.sub_comments) ? item.sub_comments : [];
+    replies.forEach((reply) => {
+      const replyUser = reply.user || {};
+      const replyNick = replyUser.original_name || replyUser.nickname || "匿名";
+      lines.push(`    ↳ ${replyNick}: ${(reply.content || "").replace(/\n+/g, " ")}`);
+    });
+    if (!replies.length && toCount(item.sub_comment_count) > 0) {
+      lines.push(`    ↳ 另有 ${toCount(item.sub_comment_count)} 条回复未展开`);
+    }
+  });
+  return lines.join("\n");
+}
+
+/**
+ * text 格式化：笔记搜索结果（按点赞降序）。
+ * @param {object} resp
+ * @returns {string}
+ */
+function searchTextFormatter(resp = {}) {
+  const data = resp.data || {};
+  const items = data.items || [];
+  const rows = items
+    .map((item) => ({ note: item.noteInfo || {}, user: item.userInfo || {} }))
+    .sort((a, b) => toCount(b.note.likeNum) - toCount(a.note.likeNum));
+
+  const lines = [`✓ 共取到 ${rows.length} 条笔记`];
+  if (data.has_more) lines.push("  提示: 还有更多结果，可加 --max-pages");
+  rows.forEach((row, index) => {
+    const note = row.note;
+    const author = row.user.nickName || "未知作者";
+    lines.push("", `[${index + 1}] ${note.title || "（无标题）"}`);
+    lines.push(
+      `    ${note.noteType === "video" ? "视频" : "图文"} · 赞 ${toCount(note.likeNum)}` +
+        ` / 藏 ${toCount(note.favNum)} / 评 ${toCount(note.cmtNum)} · ${author}`
+    );
+    if (note.notePublishTime) lines.push(`    发布: ${note.notePublishTime}`);
+    if (note.noteLink) lines.push(`    ${note.noteLink}`);
+  });
+  return lines.join("\n");
+}
+
+/**
+ * text 格式化：用户详情。
+ * @param {object} resp
+ * @returns {string}
+ */
+function userInfoTextFormatter(resp = {}) {
+  const info = resp.user_info || {};
+  const basic = info.basic_info || {};
+  const lines = [`✓ ${basic.nickname || "（无昵称）"}`];
+  if (basic.red_id) lines.push(`  小红书号: ${basic.red_id}`);
+  if (basic.ip_location) lines.push(`  地区:     ${basic.ip_location}`);
+  const interactions = info.interactions || [];
+  if (interactions.length) {
+    lines.push(`  互动:     ${interactions.map((item) => `${item.name} ${toCount(item.count)}`).join(" / ")}`);
+  }
+  const tags = info.tags || [];
+  if (tags.length) lines.push(`  标签:     ${tags.join("、")}`);
+  if (basic.desc) lines.push("", basic.desc);
+  return lines.join("\n");
+}
+
+/**
+ * text 格式化：用户笔记列表。
+ * @param {object} resp
+ * @returns {string}
+ */
+function userNotesTextFormatter(resp = {}) {
+  const notes = (resp.data && resp.data.notes) || [];
+  const lines = [`✓ 共取到 ${notes.length} 条笔记`];
+  let totalLikes = 0;
+  notes.forEach((note, index) => {
+    totalLikes += toCount(note.likes);
+    const flags = [];
+    if (note.sticky) flags.push("置顶");
+    if (note.is_goods_note) flags.push("带货");
+    const flagText = flags.length ? ` [${flags.join("/")}]` : "";
+    const published = formatXhsTime(note.time).slice(0, 10);
+    lines.push(
+      "",
+      `[${index + 1}] ${note.title || "（无标题）"}${flagText}`,
+      `    ${note.type === "video" ? "视频" : "图文"} · 赞 ${toCount(note.likes)} / 藏 ${toCount(note.collected_count)}` +
+        ` / 评 ${toCount(note.comments_count)}${published ? ` · ${published}` : ""}`
+    );
+  });
+  if (notes.length) lines.push("", `点赞合计: ${totalLikes}`);
+  return lines.join("\n");
+}
+
+/**
+ * xhs note：获取单篇笔记详情。
+ * @param {string} input 笔记链接 / 短链 / 分享口令 / note_id
+ * @param {{apiKey?: string, format?: "json"|"text"}} options
+ * @returns {Promise<void>}
+ */
+async function noteCommand(input, options = {}) {
+  const format = options.format || "json";
+  const apiKey = resolveKeyOrExit(options.apiKey, format);
+
+  try {
+    const noteId = await resolveNoteId(input);
+    const result = await xhsNoteInfo(apiKey, noteId);
+    outputResult(result, format, noteTextFormatter);
+    process.exit(0);
+  } catch (err) {
+    handleApiError(err, format);
+    process.exit(1);
+  }
+}
+
+/**
+ * xhs comments：获取笔记一级评论（含可见的楼内回复）。
+ * @param {string} input 笔记链接 / 短链 / 分享口令 / note_id
+ * @param {{apiKey?: string, format?: string, maxPages?: string, maxSeconds?: string}} options
+ * @returns {Promise<void>}
+ */
+async function commentsCommand(input, options = {}) {
+  const format = options.format || "json";
+  const apiKey = resolveKeyOrExit(options.apiKey, format);
+
+  try {
+    const noteId = await resolveNoteId(input);
+    const result = await xhsNoteComments(apiKey, {
+      noteId,
+      maxPages: options.maxPages === undefined ? 1 : safeParseInt(options.maxPages, 1),
+      maxSeconds: options.maxSeconds === undefined ? undefined : safeParseInt(options.maxSeconds, 50),
+    });
+    outputResult(result, format, commentsTextFormatter);
+    process.exit(0);
+  } catch (err) {
+    handleApiError(err, format);
+    process.exit(1);
+  }
+}
+
+/**
+ * xhs search：按关键词搜索笔记。
+ * @param {string} keyword
+ * @param {{apiKey?: string, format?: string, sort?: string, noteTime?: string, noteType?: string, maxPages?: string}} options
+ * @returns {Promise<void>}
+ */
+async function searchCommand(keyword, options = {}) {
+  const format = options.format || "json";
+  const apiKey = resolveKeyOrExit(options.apiKey, format);
+
+  try {
+    const result = await xhsNoteSearch(apiKey, {
+      keyword,
+      maxPages: options.maxPages === undefined ? 1 : safeParseInt(options.maxPages, 1),
+      sort: options.sort,
+      noteTime: options.noteTime,
+      noteType: options.noteType,
+    });
+    outputResult(result, format, searchTextFormatter);
+    process.exit(0);
+  } catch (err) {
+    handleApiError(err, format);
+    process.exit(1);
+  }
+}
+
+/**
+ * xhs user：获取用户详情。
+ * @param {string} input 主页链接 / user_id
+ * @param {{apiKey?: string, format?: "json"|"text"}} options
+ * @returns {Promise<void>}
+ */
+async function userCommand(input, options = {}) {
+  const format = options.format || "json";
+  const apiKey = resolveKeyOrExit(options.apiKey, format);
+
+  try {
+    const userId = resolveUserId(input);
+    const result = await xhsUserInfo(apiKey, userId);
+    outputResult(result, format, userInfoTextFormatter);
+    process.exit(0);
+  } catch (err) {
+    handleApiError(err, format);
+    process.exit(1);
+  }
+}
+
+/**
+ * xhs user-notes：获取用户笔记列表。
+ * @param {string} input 主页链接 / user_id
+ * @param {{apiKey?: string, format?: string, maxPages?: string}} options
+ * @returns {Promise<void>}
+ */
+async function userNotesCommand(input, options = {}) {
+  const format = options.format || "json";
+  const apiKey = resolveKeyOrExit(options.apiKey, format);
+
+  try {
+    const userId = resolveUserId(input);
+    const result = await xhsUserNotes(apiKey, {
+      userId,
+      maxPages: options.maxPages === undefined ? 1 : safeParseInt(options.maxPages, 1),
+    });
+    outputResult(result, format, userNotesTextFormatter);
+    process.exit(0);
+  } catch (err) {
+    handleApiError(err, format);
+    process.exit(1);
+  }
+}
+
+module.exports = {
+  hotListCommand,
+  hotListTextFormatter,
+  notePublishCommand,
+  notePublishTextFormatter,
+  noteCommand,
+  commentsCommand,
+  searchCommand,
+  userCommand,
+  userNotesCommand,
+  noteTextFormatter,
+  commentsTextFormatter,
+  searchTextFormatter,
+  userInfoTextFormatter,
+  userNotesTextFormatter,
+  resolveNoteId,
+  resolveUserId,
+};

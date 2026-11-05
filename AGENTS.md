@@ -68,7 +68,7 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 | 命令 | 用途 |
 |---|---|
 | `npm install` | 安装唯一依赖 `commander`（有 lock） |
-| `npm test` | `node --test`，27 个用例，离线打桩，不需要 API Key |
+| `npm test` | `node --test`，40 个用例，离线打桩，不需要 API Key |
 | `node bin/aiconductor-cli.js --help` | 不安装也能本地运行，核对命令面 |
 | `node bin/aiconductor-cli.js <组> <子命令> --help` | 核对某个命令的参数与默认值；CLI 契约以它为准 |
 | `npm pack --dry-run` | 确认发布内容：含 `src/**`（含测试）、`api_docs/`、`AGENTS.md`，不含 `.agents/` 与 `references/`（平台侧规范只在本机，已从 `.npmignore`/`.gitignore` 排掉） |
@@ -96,7 +96,7 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 
 - 技能放 `.agents/skills/<name>/`（2026-11-04 从 `.codex/skills/` 迁来，内容逐字未变，`git mv` 效果）：pi 从 cwd 向上到仓库根发现项目级 `.agents/skills/`（`dist/core/package-manager.js` 的 `collectAncestorAgentsSkillDirs`），`.codex/skills/` 从来不是 pi 的发现路径。代价：项目里有 `.agents/skills/` 会触发**项目信任门禁**（`hasTrustRequiringProjectResources` 返回 true），未信任时这 11 个技能不加载。**这是故意的**（2026-11-04）：本仓技能是**上架产物**（WorkBuddy / 技能仓库的发布件），不是本机开发时要用的上下文，所以 `~/.pi/agent/trust.json` 已给 `D:/Development/aiconductor-cli` 显式写 `false`——pi 不弹信任提示、技能不进上下文；需要某条技能内容时直接 `read .agents/skills/<name>/SKILL.md`，**不要为了加载它去信任项目**。
 - `.gitignore` 用 `.agents/*` + `!.agents/skills/` 只放行技能，`.agents/ledger.md`、`.agents/plans/` 属本机脚手架不入库——**别把 `.agents/` 整目录 ignore**，那会让技能从版本控制里消失（`git status` 表现为 `.codex/` 全删、新目录全是 `??`）。
-- 目录名、frontmatter `name`、实际调用的命令必须一致；`description` 写能力 + 用户原话触发 + 与相邻 skill 的边界（简报→content-briefing，单点搜索→doubao-search，网页→webpage-publish，抖音数据→douyin-toolbox，抖音文案→douyin-script-extract，抖音选题→douyin-topic-radar，抖音评论→douyin-comment-insight，抖音账号→douyin-account-analyze，小红书→xhs-note-publish，公众号发文列表→wx-account-articles，单篇公众号数据→wx-article-data）。
+- 目录名、frontmatter `name`、实际调用的命令必须一致；`description` 写能力 + 用户原话触发 + 与相邻 skill 的边界（简报→content-briefing，单点搜索→doubao-search，网页→webpage-publish，抖音数据→douyin-toolbox，抖音文案→douyin-script-extract，抖音选题→douyin-topic-radar，抖音评论→douyin-comment-insight，抖音账号→douyin-account-analyze，小红书发布→xhs-note-publish，小红书选题→xhs-topic-radar，小红书单篇拆解→xhs-note-insight，小红书账号→xhs-account-analyze，公众号发文列表→wx-account-articles，单篇公众号数据→wx-article-data）。
 - `SKILL.md` 只放路由、决策、命令行、响应路径、安全规则；长选项表、安装与密钥恢复放 `references/`，并写明何时读。
 - 默认 JSON 输出，文档写稳定的 `data.data.*` 路径（`outputResult` 会额外包一层 `{success, data}`）。
 - 用户请求执行即等同授权：不要每次预检安装或密钥；安装说明只在需要时读一次，修复后重试原命令一次。
@@ -127,6 +127,10 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 - **`wx_history_articles` 的上游失败藏在 `data.code`**：平台侧仍回 `success:true`，只有 `data.code` 非 0 才是失败（实测 `107` = 名称/链接对不上，`20001` = 平台侧上游故障），`src/api.js` 的 `throwOnWxHistoryFailure` 把它转成 `api_error`（退出码 1）。别用「数组为空」推断「这个号没发文」。
 - **抖音字段单位不统一**：`video-search` 的 `video.duration` 是**毫秒**，`user-videos` 的 `duration` 是 `"MM:SS"` 字符串——同名不同单位，跨端点复用代码必翻车。
 - **抖音时间戳是北京时间编码**：`create_time` 按 UTC 渲染出来就是北京时间，**不要再 +8 小时**（2026-10-28 实测 `video-search`/`video-comments`/`user-videos` 三处：+8 会让半小时前发的视频落到 7 小时后）。`user-videos` 另带 `create_time_formatted`，同口径。
+- **小红书时间戳正好相反**：`note_info.time`（秒）与 `user_notes/country` 的 `time`（毫秒）都是**真 UTC epoch**，展示必须 **+8**（2026-11-05 实测：同一视频笔记 `note_info.time`+8h 等于 `search` 返回的 `notePublishTime` 字符串）。上游 `time_desc` 的 `MM-DD` 是 **UTC-8 口径**（10-29 04:50 UTC 的笔记显示 `10-28`），只能用 `time +8` 自算。
+- **小红书端点取名与上游是错位的**：`xhs_user_notes_v2` 走 TikHub（可用、20 条/页），`xhs_user_notes_v3` 原本走 YDDM 且长期返回 `code 5003`（已于 2026-11-05 迁到同一 TikHub 上游）。CLI 选定 `xhs_user_notes_v2`；换端点要同步改测试与 `api_docs`。
+- **小红书 `share_text` 不能透传中文口令**：平台侧是原样转发上游的，带「复制内容，然后进入【小红书】…」的分享文案直接空结果（实测）。所以 `resolveNoteId` 先本地抽 URL、再跟 302 展开 `xhslink.cn` 短链。
+- **小红书同名不同结构**：`interact_info.*_count`、`like_count`、`sub_comment_count` 都是**字符串**；评论的 `user` 用 `userid`/`images`/`original_name`，笔记的 `user` 用 `user_id`/`avatar`/`nickname`。`noteInfo.readNum` 与 `userInfo.fansNum` 实测**恒为 0**，不要当真实阅读量/粉丝数承诺。
 - **密钥解析**：`-k` > `AICONDUCTOR_API_KEY` > **当前工作目录**的 `.env`（不向上查找）；缺失时 `resolveKeyOrExit` 打印错误并退出 1。
 
 ## 禁区
@@ -150,7 +154,7 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 
 ## 最短验证闭环
 
-`npm test`（27 个用例，离线打桩，不需要 API Key）。改动涉及 `bin/`、`README.md`、skill 文字或新增命令时，再补一条人工核对：`node bin/aiconductor-cli.js <组> <子命令> --help`——`bin/` 的接线没有自动化测试覆盖。
+`npm test`（40 个用例，离线打桩，不需要 API Key）。改动涉及 `bin/`、`README.md`、skill 文字或新增命令时，再补一条人工核对：`node bin/aiconductor-cli.js <组> <子命令> --help`——`bin/` 的接线没有自动化测试覆盖。
 
 ## 任务执行与报告约定
 
