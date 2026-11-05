@@ -2,8 +2,11 @@ node_modules/
 .env
 *.log
 .DS_Store
-.agents/
+# .agents/ 只入库 skills（面向 agent 的工作流）；ledger 与 plans 属本机脚手架，不入库。
+# 不要写成 `.agents/`——那会把整个技能目录一起丢掉。
+.agents/*
+!.agents/skills/
 
-# 平台侧规范：只在本机留存，不进 npm 包、不入库（只匹配仓库根目录，否则会误伤 .codex/skills/*/references/）
+# 平台侧规范：只在本机留存，不进 npm 包、不入库（只匹配仓库根目录，否则会误伤 .agents/skills/*/references/）
 /references/
-.codex/skills/*.zip
+.agents/skills/*.zip
