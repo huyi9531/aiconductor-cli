@@ -1,7 +1,7 @@
 ---
 name: xhs-account-analyze
-display_name: 小红书账号分析
-display_name_en: Xiaohongshu Account Analysis
+display_name: 小红书账号分析 Pro
+display_name_en: Xiaohongshu Account Analysis Pro
 description: >-
   小红书账号分析 — 给一个小红书主页链接（或账号 ID），拉取账号资料与最近笔记，输出账号画像、更新节奏、
   内容结构、爆款清单与可复刻点。当用户说"扒一下这个小红书号""这个账号怎么样""他为什么能火"
@@ -24,7 +24,7 @@ version: 1.0.0
 author: "AI指挥家"
 ---
 
-# 小红书账号分析
+# 小红书账号分析 Pro
 
 ## 概述
 
