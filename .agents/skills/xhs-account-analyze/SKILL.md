@@ -20,7 +20,7 @@ examples_en:
   - "Break down this Xiaohongshu account — why is it growing so fast?"
   - "Analyze this account's content mix — could I do the same niche?"
   - "How many notes did this account post last month, and which ones went viral?"
-version: 1.0.0
+version: 1.0.1
 author: "AI指挥家"
 ---
 
