@@ -94,7 +94,7 @@ platform 侧还有、CLI 未接 10 个：`wx_rss_reader`、`flow_wx_history_arti
 
 ### 维护 skill
 
-- 技能放 `.agents/skills/<name>/`（2026-11-04 从 `.codex/skills/` 迁来，内容逐字未变，`git mv` 效果）：pi 从 cwd 向上到仓库根发现项目级 `.agents/skills/`（`dist/core/package-manager.js` 的 `collectAncestorAgentsSkillDirs`），`.codex/skills/` 从来不是 pi 的发现路径。代价：项目里有 `.agents/skills/` 会触发**项目信任门禁**（`hasTrustRequiringProjectResources` 返回 true），未信任时这 11 个技能不加载；本仓当前 `~/.pi/agent/trust.json` 无记录，需在 pi 里接受信任才生效。
+- 技能放 `.agents/skills/<name>/`（2026-11-04 从 `.codex/skills/` 迁来，内容逐字未变，`git mv` 效果）：pi 从 cwd 向上到仓库根发现项目级 `.agents/skills/`（`dist/core/package-manager.js` 的 `collectAncestorAgentsSkillDirs`），`.codex/skills/` 从来不是 pi 的发现路径。代价：项目里有 `.agents/skills/` 会触发**项目信任门禁**（`hasTrustRequiringProjectResources` 返回 true），未信任时这 11 个技能不加载。**这是故意的**（2026-11-04）：本仓技能是**上架产物**（WorkBuddy / 技能仓库的发布件），不是本机开发时要用的上下文，所以 `~/.pi/agent/trust.json` 已给 `D:/Development/aiconductor-cli` 显式写 `false`——pi 不弹信任提示、技能不进上下文；需要某条技能内容时直接 `read .agents/skills/<name>/SKILL.md`，**不要为了加载它去信任项目**。
 - `.gitignore` 用 `.agents/*` + `!.agents/skills/` 只放行技能，`.agents/ledger.md`、`.agents/plans/` 属本机脚手架不入库——**别把 `.agents/` 整目录 ignore**，那会让技能从版本控制里消失（`git status` 表现为 `.codex/` 全删、新目录全是 `??`）。
 - 目录名、frontmatter `name`、实际调用的命令必须一致；`description` 写能力 + 用户原话触发 + 与相邻 skill 的边界（简报→content-briefing，单点搜索→doubao-search，网页→webpage-publish，抖音数据→douyin-toolbox，抖音文案→douyin-script-extract，抖音选题→douyin-topic-radar，抖音评论→douyin-comment-insight，抖音账号→douyin-account-analyze，小红书→xhs-note-publish，公众号发文列表→wx-account-articles，单篇公众号数据→wx-article-data）。
 - `SKILL.md` 只放路由、决策、命令行、响应路径、安全规则；长选项表、安装与密钥恢复放 `references/`，并写明何时读。
